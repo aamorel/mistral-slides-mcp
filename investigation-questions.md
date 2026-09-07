@@ -539,5 +539,23 @@ Railway deployment result:
 ```
 
 Remaining Investigation 1 work:
-- Register the deployed `/mcp` URL in Vibe/Studio as a private custom MCP Connector.
-- Confirm whether Vibe can discover and invoke `ping`.
+- None.
+
+Vibe/Studio Connector result:
+- Connector name/id: `slides_generator_6776`.
+- Vibe successfully connected to the deployed `/mcp` endpoint.
+- Vibe successfully invoked `ping`.
+- Vibe displayed the structured response cleanly as a field/value table.
+- Vibe reported two exposed functions:
+  - `ping`
+  - `read_resource`
+
+Investigation 1 decision:
+- Private custom MCP Connector creation is available on the account.
+- Deployed Streamable HTTP MCP at `/mcp` is accepted by Vibe.
+- No-auth is accepted for the basic smoke-test Connector.
+- This transport/deployment shape is viable for the MVP.
+- Next investigation should focus on auth behavior and whether user-scoped Google OAuth can be represented cleanly through Vibe's Connector flow.
+
+Investigation 1 status:
+- Complete.
