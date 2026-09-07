@@ -1,0 +1,16 @@
+[project]
+name = "mcp-slides"
+version = "0.1.0"
+description = "Investigation project for a Vibe custom MCP Connector that creates Google Slides decks."
+readme = "scope.md"
+requires-python = ">=3.12"
+dependencies = [
+    "mcp[cli]",
+]
+
+[project.scripts]
+mcp-slides-ping = "mcp_slides.ping_server:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

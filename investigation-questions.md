@@ -1,0 +1,495 @@
+# MCP Slides Investigation Questions
+
+This document turns the current unknowns into concrete tests. The goal is to answer these before building the final minimal implementation, so the MVP is based on observed behavior instead of assumptions.
+
+## Target MVP
+
+Build a deployed MCP server that Vibe can register as a Connector. The Connector exposes one tool:
+
+```ts
+generate_presentation({
+  topic: string,
+  slide_count?: number,
+  audience?: string,
+  tone?: string
+}) => {
+  presentation_id: string,
+  presentation_url: string,
+  title: string
+}
+```
+
+The tool should:
+
+1. Validate the request.
+2. Ask Mistral for a strict JSON outline.
+3. Create a Google Slides deck in the authenticated user's Google Drive.
+4. Populate plain title-and-bullet slides.
+5. Return the deck ID, URL, and title.
+
+For the MVP, slide design is intentionally out of scope.
+
+## Account And Service Setup Needed
+
+- Mistral account with API key.
+- Mistral organisation ID for assignment credits.
+- Vibe / AI Studio access.
+- Google Cloud project.
+- Google OAuth consent screen.
+- OAuth client for a web application.
+- Google Slides API enabled.
+- Google Drive API enabled if needed by the selected scope or client library.
+- Deployment account, likely Railway, Render, or Fly.io.
+
+## Questions To Answer
+
+### 1. What MCP transport does Vibe require for a custom Connector?
+
+Why it matters:
+The server shape depends on whether Vibe expects Streamable HTTP MCP, SSE, a specific endpoint path, or additional discovery metadata.
+
+How to answer:
+Build the smallest possible deployed MCP server with one no-op tool, such as `ping() -> { ok: true }`. Register it in Vibe as a custom Connector and verify whether tool discovery succeeds.
+
+Expected test output:
+- Connector registration succeeds or fails.
+- Vibe lists the `ping` tool.
+- A direct call or chat-triggered call returns the static result.
+
+Prerequisites:
+- Vibe / AI Studio access.
+- Public HTTPS deployment URL.
+
+Decision:
+- Use the transport and endpoint shape that Vibe accepts.
+
+### 2. What authentication modes does Vibe support for our MCP server?
+
+Why it matters:
+The assignment wants a clean Connector experience. We need to know whether we can start with no auth, static bearer auth, or whether Vibe requires OAuth 2.1 for a user-facing connection flow.
+
+How to answer:
+Test the no-op MCP server in three modes if supported:
+
+1. No authentication.
+2. Static bearer token.
+3. OAuth 2.1 / dynamic client registration.
+
+Use Vibe's Connector setup and debugger to observe what it detects.
+
+Expected test output:
+- Which modes are accepted.
+- What Vibe asks the user to configure.
+- Whether OAuth setup redirects correctly.
+
+Prerequisites:
+- Deployed no-op MCP server.
+- Vibe Connector debugger access.
+
+Decision:
+- Pick the simplest accepted auth mode that still supports user-scoped Google authorization.
+
+### 3. Can Vibe Connector OAuth directly represent Google OAuth?
+
+Why it matters:
+The ideal flow is:
+
+```text
+User connects MCP Connector in Vibe
+  -> Vibe starts OAuth
+  -> User authorizes Google
+  -> MCP tool receives enough user-scoped credential context
+  -> Server creates a deck in that user's Drive
+```
+
+But this only works if Vibe's MCP OAuth flow can be bridged cleanly to Google OAuth.
+
+How to answer:
+Implement a minimal OAuth endpoint that redirects to Google OAuth and handles the callback. Register it as the Connector auth flow. Inspect what Vibe expects from the authorization server and what it sends on later MCP tool calls.
+
+Expected test output:
+- Whether Vibe accepts Google as the upstream consent step.
+- Whether the MCP server can associate the resulting Google tokens with later tool calls.
+- What headers, access tokens, or subject identifiers appear during tool calls.
+
+Prerequisites:
+- Google OAuth client.
+- Redirect URI configured in Google Cloud.
+- Vibe OAuth Connector test flow.
+
+Decision:
+- If this works, use Vibe Connector OAuth as the user-facing auth path.
+- If not, build a separate app-level Google auth flow and expose a clear setup path.
+
+### 4. What user identity is available during an MCP tool call?
+
+Why it matters:
+If we store Google refresh tokens, we need a stable key for each connected user. Without that, we cannot safely map a Vibe user to the right Google account.
+
+How to answer:
+Add temporary request logging to the no-op MCP server. Capture headers, auth claims, session identifiers, and any MCP metadata during tool discovery and tool invocation.
+
+Expected test output:
+- A stable user or credential identifier, if one exists.
+- Clear distinction between connector-level identity and end-user identity.
+- Confirmation of whether different users produce different identifiers.
+
+Prerequisites:
+- Deployed MCP server.
+- At least two test accounts if possible.
+
+Decision:
+- Use the stable user/credential subject as the database key.
+- If no stable identity is available, we need another token association strategy.
+
+### 5. Can `drive.file` alone create and edit Google Slides decks?
+
+Why it matters:
+`drive.file` is the narrowest likely useful scope and is preferable because it is non-sensitive. We should verify it empirically with the exact create-and-populate flow.
+
+How to answer:
+Write a standalone Google OAuth script that requests only:
+
+```text
+https://www.googleapis.com/auth/drive.file
+```
+
+Then call:
+
+1. `presentations.create`
+2. `presentations.batchUpdate`
+
+Expected test output:
+- A new deck appears in the authenticated user's Google Drive.
+- The deck contains a title slide and bullet slides.
+- The returned URL opens successfully.
+
+Prerequisites:
+- Google Cloud project.
+- OAuth client.
+- Slides API enabled.
+- Test Google account.
+
+Decision:
+- If `drive.file` works, use only that scope.
+- If it fails, test `https://www.googleapis.com/auth/presentations` and document why the broader scope is required.
+
+### 6. What Google OAuth publishing state is needed for reviewers?
+
+Why it matters:
+If the app remains in external testing mode, only allowlisted test users can authorize it. Reviewers may not be able to connect unless we add their emails.
+
+How to answer:
+After configuring the OAuth app, try authorization from:
+
+1. A listed test user.
+2. A Google account not listed as a test user.
+
+If only `drive.file` is used, investigate whether publishing the app removes the test-user requirement without requiring sensitive-scope verification.
+
+Expected test output:
+- Whether non-test users can authorize.
+- Whether Google shows an unverified/testing warning.
+- Whether refresh tokens expire after the expected testing-mode window.
+
+Prerequisites:
+- Google OAuth consent screen.
+- At least two Google accounts.
+
+Decision:
+- Either publish with non-sensitive scopes, or document that reviewer emails must be added as test users.
+
+### 7. Does Google return refresh tokens reliably for this flow?
+
+Why it matters:
+Access tokens expire. If we cannot obtain or retain refresh tokens, users may need to reconnect frequently.
+
+How to answer:
+Run the standalone Google OAuth flow with:
+
+```text
+access_type=offline
+prompt=consent
+```
+
+Then repeat authorization and token refresh tests.
+
+Expected test output:
+- Initial auth returns a refresh token.
+- Stored refresh token can obtain a new access token.
+- Repeated auth behavior is understood.
+
+Prerequisites:
+- Google OAuth client.
+- Local or deployed callback URL.
+
+Decision:
+- Store encrypted refresh tokens if available.
+- If refresh tokens are not reliable, design the UX around reconnecting.
+
+### 8. What is the smallest reliable Google Slides batchUpdate payload?
+
+Why it matters:
+The MVP should avoid layout complexity. We need a stable sequence of create-slide and insert-text operations.
+
+How to answer:
+Create a script with a fixed outline:
+
+```json
+{
+  "title": "Demo Deck",
+  "slides": [
+    { "title": "Slide 1", "bullets": ["A", "B", "C"] },
+    { "title": "Slide 2", "bullets": ["D", "E", "F"] }
+  ]
+}
+```
+
+Generate a deck and inspect the result manually.
+
+Expected test output:
+- The script produces a readable deck.
+- Batch updates are atomic and repeatable.
+- Object IDs are deterministic enough for debugging.
+
+Prerequisites:
+- Working Google OAuth script.
+
+Decision:
+- Use this payload builder in the MCP implementation.
+
+### 9. How should the MCP tool handle Mistral JSON generation?
+
+Why it matters:
+The tool must return a deck, not a malformed outline error caused by model drift.
+
+How to answer:
+Write a standalone Mistral script that asks for strict JSON and validates the result against a schema. Test a few topics, slide counts, audiences, and tones.
+
+Expected test output:
+- Valid JSON for common prompts.
+- Validation catches malformed or overlong output.
+- Retry-once behavior improves reliability.
+
+Prerequisites:
+- Mistral API key.
+- Model selection.
+
+Decision:
+- Keep Mistral generation inside the MCP tool.
+- Use schema validation before calling Google.
+
+### 10. What deployment target gives the least friction?
+
+Why it matters:
+The assignment requires a deployed MCP server. The host needs stable HTTPS, env vars, logs, and ideally a small database.
+
+How to answer:
+Deploy the no-op MCP server to one candidate platform first, likely Railway or Render. Verify:
+
+- HTTPS URL is stable.
+- Env vars work.
+- Logs are accessible.
+- Server handles Vibe requests.
+- Persistent storage option exists, if needed.
+
+Expected test output:
+- A public MCP URL that Vibe can reach.
+- Repeatable deploy instructions.
+
+Prerequisites:
+- Deployment account.
+
+Decision:
+- Use the first platform that passes the no-op MCP registration test cleanly.
+
+### 11. Do we need persistent token storage for the MVP?
+
+Why it matters:
+Persistent storage adds complexity, but without it the user may have to reconnect or the server may be unable to call Google after OAuth.
+
+How to answer:
+After understanding Vibe's auth behavior, test whether the tool call receives enough credential context to call Google immediately without server-side storage. If not, store refresh tokens keyed by the user identity discovered in question 4.
+
+Expected test output:
+- Either stateless calls work, or persistent refresh-token storage is required.
+
+Prerequisites:
+- Answers to questions 3, 4, and 7.
+
+Decision:
+- Prefer encrypted persistent storage if Vibe does not manage Google tokens directly for us.
+
+### 12. What failure contract does Vibe display best?
+
+Why it matters:
+When auth, Mistral, or Google fails, the user should see a useful message instead of an opaque MCP failure.
+
+How to answer:
+Force controlled failures:
+
+- Missing topic.
+- Invalid slide count.
+- Missing Google auth.
+- Invalid Mistral API key.
+- Google quota or permission failure, if easy to simulate.
+
+Observe how Vibe displays tool errors.
+
+Expected test output:
+- Best format for user-visible errors.
+- Distinction between validation errors, auth errors, and upstream API errors.
+
+Prerequisites:
+- Registered no-op or partial MCP Connector.
+
+Decision:
+- Implement structured errors in the format Vibe handles most clearly.
+
+## Proposed Investigation Order
+
+1. No-op deployed MCP Connector.
+2. Vibe authentication behavior.
+3. Google OAuth standalone script.
+4. `drive.file` Slides create/edit test.
+5. Google reviewer/test-user behavior.
+6. Mistral strict JSON script.
+7. Combine Mistral + Google locally.
+8. Add real MCP tool.
+9. Solve persistent auth/token mapping.
+10. Final deployment and README.
+
+## Deliberately Out Of Scope For MVP
+
+- Custom slide themes.
+- Images.
+- Speaker notes.
+- Existing deck editing.
+- Folder selection.
+- Collaboration/sharing settings.
+- Multiple tools.
+- Presentation templates.
+- Long-running progress updates.
+- User-facing web dashboard.
+
+## Investigation Log
+
+### 2026-09-07 - Investigation 1 Started: No-Op MCP Connector
+
+Question:
+Can our account register and call a private custom MCP Connector from Vibe/Studio?
+
+Current implementation:
+- Added a minimal Python MCP server at `src/mcp_slides/ping_server.py`.
+- Added `pyproject.toml` with the official `mcp[cli]` dependency.
+- Added `scripts/smoke_ping_client.py` to test the MCP protocol locally.
+- Exposed one tool: `ping() -> { ok, server, purpose }`.
+- Intended transport: Streamable HTTP.
+- Intended endpoint after local start: `http://127.0.0.1:8000/mcp`.
+
+Local test command:
+
+```sh
+uv run mcp-slides-ping
+```
+
+Expected local behavior:
+- Server starts on `0.0.0.0:8000`.
+- MCP endpoint is available at `/mcp`.
+- MCP Inspector or another MCP client can list and call the `ping` tool.
+
+Local smoke client command:
+
+```sh
+uv run python scripts/smoke_ping_client.py
+```
+
+Deployment test:
+Deploy the same server with this start command:
+
+```sh
+uv run mcp-slides-ping
+```
+
+The hosting platform must provide:
+- A public HTTPS URL.
+- A `PORT` environment variable, or support port `8000`.
+
+Expected deployed Connector URL:
+
+```text
+https://<deployment-host>/mcp
+```
+
+Vibe/Studio test steps:
+1. Open the Connectors page.
+2. Click `+ Add Connector`.
+3. Choose the custom MCP Connector option.
+4. Use a private connector name such as `mcp_slides_ping`.
+5. Enter the deployed `/mcp` URL.
+6. Confirm whether Vibe detects no-auth Streamable HTTP.
+7. Confirm whether Vibe lists the `ping` tool.
+8. Call `ping` directly if the debugger supports direct invocation.
+9. Ask Vibe something like: "Use `mcp_slides_ping` to ping the test server."
+
+What to record:
+- Whether private custom Connector creation is available on the account.
+- Whether admin permissions are required.
+- Whether `/mcp` is the correct endpoint.
+- Whether no-auth is accepted.
+- Whether Streamable HTTP is accepted.
+- Whether Vibe lists the tool schema correctly.
+- Whether Vibe can invoke `ping`.
+- Any error messages from the Connector debugger.
+
+Status:
+- Server scaffold created.
+- Local dependency install completed.
+- Local smoke test passed.
+- Confirmed the installed MCP SDK is 2.x, so the server uses `MCPServer` from `mcp.server.mcpserver`, not the older `FastMCP` import path.
+- Confirmed local Streamable HTTP endpoint at `/mcp`.
+- Confirmed local MCP tool discovery returns `ping`.
+- Confirmed local MCP tool invocation returns structured content:
+
+```json
+{
+  "ok": true,
+  "server": "mcp-slides-investigation",
+  "purpose": "Validate Vibe can discover and call a custom MCP tool."
+}
+```
+
+- Deployment and Vibe registration still pending.
+
+Railway deployment guide for this investigation:
+
+1. Push this workspace to a GitHub repository.
+2. In Railway, create a new project.
+3. Choose `Deploy from GitHub repo`.
+4. Select the repository.
+5. In the Railway service settings, set the start command to:
+
+```sh
+uv run mcp-slides-ping
+```
+
+6. Keep the root directory as the repository root.
+7. Do not configure a healthcheck yet. The current server exposes MCP at `/mcp`, not a plain `GET /health` route.
+8. Deploy the service.
+9. In the service `Networking` settings, generate a public domain.
+10. Use the public MCP endpoint in Vibe:
+
+```text
+https://<railway-domain>/mcp
+```
+
+Railway-specific notes:
+- Railway provides a `PORT` environment variable at runtime.
+- The server reads `PORT` and binds to `0.0.0.0`, which Railway requires for public traffic.
+- Railway may not infer a start command from this minimal Python project, so set it explicitly.
+- No secrets are needed for investigation 1.
+
+Expected Railway validation:
+- Deployment logs show the server listening on `0.0.0.0:<PORT>`.
+- Vibe/Studio accepts the `/mcp` URL as a custom MCP Connector.
+- Vibe/Studio can discover and invoke `ping`.
