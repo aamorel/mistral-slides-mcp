@@ -404,6 +404,12 @@ Local smoke client command:
 uv run python scripts/smoke_ping_client.py
 ```
 
+Deployed smoke client command:
+
+```sh
+uv run python scripts/smoke_ping_client.py https://<railway-domain>/mcp
+```
+
 Deployment test:
 Deploy the same server with this start command:
 
@@ -516,3 +522,22 @@ Expected Railway validation:
 - Deployment logs show the server listening on `0.0.0.0:<PORT>`.
 - Vibe/Studio accepts the `/mcp` URL as a custom MCP Connector.
 - Vibe/Studio can discover and invoke `ping`.
+
+Railway deployment result:
+- Public domain: `https://mistral-slides-mcp-production.up.railway.app`
+- MCP endpoint: `https://mistral-slides-mcp-production.up.railway.app/mcp`
+- External MCP smoke test passed.
+- Discovered tools: `["ping"]`
+- `ping` returned:
+
+```json
+{
+  "ok": true,
+  "server": "mcp-slides-investigation",
+  "purpose": "Validate Vibe can discover and call a custom MCP tool."
+}
+```
+
+Remaining Investigation 1 work:
+- Register the deployed `/mcp` URL in Vibe/Studio as a private custom MCP Connector.
+- Confirm whether Vibe can discover and invoke `ping`.
