@@ -486,8 +486,31 @@ https://<railway-domain>/mcp
 Railway-specific notes:
 - Railway provides a `PORT` environment variable at runtime.
 - The server reads `PORT` and binds to `0.0.0.0`, which Railway requires for public traffic.
-- Railway may not infer a start command from this minimal Python project, so set it explicitly.
+- Railway did not infer a start command from this minimal Python project, so `railway.json` now sets `deploy.startCommand` explicitly.
 - No secrets are needed for investigation 1.
+
+Observed Railway build issue:
+
+```text
+Railpack 0.39.0
+Detected Python
+Using uv
+No start command detected.
+```
+
+Fix applied:
+
+```json
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "build": {
+    "builder": "RAILPACK"
+  },
+  "deploy": {
+    "startCommand": "uv run mcp-slides-ping"
+  }
+}
+```
 
 Expected Railway validation:
 - Deployment logs show the server listening on `0.0.0.0:<PORT>`.
