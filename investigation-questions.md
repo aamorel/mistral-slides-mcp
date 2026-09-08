@@ -905,4 +905,38 @@ What to record:
 Status:
 - Script created.
 - Compile check passed.
-- API run pending because `MISTRAL_API_KEY` is not present in the local environment.
+- API run passed after adding `MISTRAL_API_KEY` to local `.env`.
+
+Mistral API run results:
+- `.env` is used locally for `MISTRAL_API_KEY`; it is gitignored.
+- Default topic run passed.
+- Variant run with `topic`, `audience`, and `tone` passed.
+- JSON mode returned parseable JSON in both runs.
+- Schema validation passed on the first attempt in both runs.
+- Each run returned exactly 3 slides with exactly 3 bullets per slide.
+
+Default run title:
+
+```text
+AI Agents for Sales Operations
+```
+
+Variant run command:
+
+```sh
+uv run python scripts/mistral_outline_smoke.py "Post-quantum cryptography for product leaders" --slide-count 3 --audience "B2B SaaS executives" --tone "direct and pragmatic"
+```
+
+Variant run title:
+
+```text
+Post-Quantum Cryptography for Product Leaders
+```
+
+Investigation 4 decision:
+- Mistral JSON mode is sufficient for the MVP outline-generation step.
+- We should still keep server-side validation and a retry-once path in the final MCP tool.
+- The output shape can feed the Google Slides payload builder directly.
+
+Investigation 4 status:
+- Complete for strict JSON generation and validation.
