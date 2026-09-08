@@ -10,7 +10,10 @@ import logging
 from typing import Any
 
 import uvicorn
+from mcp_slides.google_auth import google_auth_callback, google_auth_start, google_auth_status
 from mcp.server.mcpserver import MCPServer
+from starlette.requests import Request
+from starlette.responses import Response
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 
@@ -34,6 +37,21 @@ def ping() -> dict[str, Any]:
         "server": "mcp-slides-investigation",
         "purpose": "Validate Vibe can discover and call a custom MCP tool.",
     }
+
+
+@mcp.custom_route("/auth/google/start", methods=["GET"])
+async def start_google_auth(request: Request) -> Response:
+    return await google_auth_start(request)
+
+
+@mcp.custom_route("/auth/google/callback", methods=["GET"])
+async def handle_google_auth_callback(request: Request) -> Response:
+    return await google_auth_callback(request)
+
+
+@mcp.custom_route("/auth/status", methods=["GET"])
+async def handle_google_auth_status(request: Request) -> Response:
+    return await google_auth_status(request)
 
 
 class InvestigationMiddleware:

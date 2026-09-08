@@ -940,3 +940,102 @@ Investigation 4 decision:
 
 Investigation 4 status:
 - Complete for strict JSON generation and validation.
+
+### 2026-09-08 - Investigation 5 Started: Deployed Google OAuth Linking
+
+Question:
+Can the deployed MCP server host its own Google OAuth start/callback/status flow and persist user-scoped Google credentials server-side?
+
+Why this matters:
+This is the pragmatic fallback if Vibe's full OAuth Connector flow is hard to bridge directly to Google. It proves users can link Google to our deployed server, after which the MCP tool can create user-owned decks with stored Google refresh tokens.
+
+Implementation changes:
+- Added `src/mcp_slides/google_auth.py`.
+- Added HTTP routes alongside `/mcp`:
+  - `GET /auth/google/start`
+  - `GET /auth/google/callback`
+  - `GET /auth/status`
+- Routes use `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` from environment variables.
+- Routes request only `https://www.googleapis.com/auth/drive.file`.
+- Tokens are stored in SQLite at `TOKEN_DB_PATH`, defaulting to `.secrets/tokens.sqlite3`.
+- Connection id defaults to `default` and can be overridden with `?connection_id=...`.
+
+Required Railway variables:
+
+```text
+GOOGLE_CLIENT_ID=<web-oauth-client-id>
+GOOGLE_CLIENT_SECRET=<web-oauth-client-secret>
+PUBLIC_BASE_URL=https://mistral-slides-mcp-production.up.railway.app
+TOKEN_DB_PATH=/data/tokens.sqlite3
+```
+
+Railway storage note:
+- `/data/tokens.sqlite3` requires a Railway volume mounted at `/data`.
+- For a temporary investigation, a non-volume path may work until redeploy, but it is not durable.
+
+Google Cloud prerequisites:
+- Add this Authorized redirect URI to the same web OAuth client:
+
+```text
+https://mistral-slides-mcp-production.up.railway.app/auth/google/callback
+```
+
+- Keep the tester account allowlisted while the app is in testing mode.
+
+Manual test flow:
+1. Deploy the new code.
+2. Open:
+
+```text
+https://mistral-slides-mcp-production.up.railway.app/auth/status
+```
+
+Expected before auth:
+
+```json
+{
+  "linked": false,
+  "connection_id": "default"
+}
+```
+
+3. Open:
+
+```text
+https://mistral-slides-mcp-production.up.railway.app/auth/google/start
+```
+
+4. Complete Google OAuth.
+5. Open `/auth/status` again.
+
+Expected after auth:
+
+```json
+{
+  "linked": true,
+  "connection_id": "default",
+  "has_refresh_token": true,
+  "scopes": ["https://www.googleapis.com/auth/drive.file"]
+}
+```
+
+What to record:
+- Whether Google accepts the deployed callback URI.
+- Whether testing-mode allowlisting still works.
+- Whether the callback stores credentials.
+- Whether `/auth/status` confirms `has_refresh_token: true`.
+- Whether persistence survives a Railway restart or redeploy when using `/data`.
+
+Status:
+- Routes created.
+- Compile check passed.
+- Local route validation passed.
+- Deployed OAuth run pending.
+
+Local validation:
+- Initial custom Starlette mounting broke `/mcp` because the MCP Streamable HTTP session manager lifespan was not initialized.
+- Fix: use `mcp.custom_route(...)` for OAuth/status routes and let the MCP SDK own the Streamable HTTP app lifecycle.
+- Confirmed locally:
+  - `GET /health` returns `{"ok": true}`.
+  - `GET /auth/status` returns `{"linked": false, "connection_id": "default"}` before auth.
+  - MCP smoke client still discovers and calls `ping`.
