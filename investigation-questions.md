@@ -1092,3 +1092,123 @@ Investigation 5 decision:
 
 Investigation 5 status:
 - Complete for deployed Google OAuth linking and token persistence.
+
+## Investigation Close-Out
+
+### Proven Facts
+
+- Vibe can register a private custom MCP Connector.
+- Vibe accepts a deployed Streamable HTTP MCP endpoint at `/mcp`.
+- Vibe can discover and invoke MCP tools from the Railway deployment.
+- Railway can deploy the Python/uv MCP server with `uv run mcp-slides-ping`.
+- Static bearer auth works for Vibe-to-MCP traffic when configured as:
+
+```text
+Authorization: Bearer <token>
+```
+
+- In no-auth mode, Vibe does not send a useful user identity or authorization header to the MCP server.
+- Google OAuth with `drive.file` works for a real Google account.
+- `drive.file` is sufficient for `presentations.create`.
+- `drive.file` is sufficient for `presentations.batchUpdate`.
+- Google OAuth returns a refresh token with the tested flow.
+- The deployed server can host `/auth/google/start`, `/auth/google/callback`, and `/auth/status`.
+- The deployed server can persist Google credentials in SQLite.
+- Mistral JSON mode can generate validated slide outlines.
+
+### Remaining Unknowns
+
+- Whether Vibe's full OAuth 2.1 Connector flow can be used as the primary user-facing auth flow.
+- Whether Vibe exposes a stable user identity during authenticated MCP calls.
+- How to map multiple Vibe users cleanly to distinct Google OAuth tokens.
+- Whether the final Google OAuth app can be published out of testing mode without extra verification using only `drive.file`.
+- Whether reviewer/examiner accounts must be added manually as test users if the app remains in testing mode.
+- Whether the Railway volume-mounted SQLite token store survives all relevant redeploy/restart scenarios.
+- Whether token storage needs encryption for the expected project quality bar.
+- How Vibe best displays structured MCP tool errors for Google auth failures, validation failures, and upstream API failures.
+- Whether Google Workspace's official MCP servers could replace some direct REST API calls later.
+
+### Non-Blocking For MVP
+
+These unknowns should not block building the super-minimal working version:
+
+- Full Vibe OAuth 2.1 integration.
+- Multi-user identity mapping.
+- OAuth app publication out of testing mode.
+- Token encryption.
+- Rich error UX.
+- Google Workspace MCP server evaluation.
+
+### Recommended MVP Build Path
+
+Use the proven pragmatic architecture:
+
+```text
+Vibe -> MCP server: static Authorization bearer header
+User -> MCP server: separate Google OAuth link at /auth/google/start
+MCP server -> Google Slides: stored user refresh token
+MCP server -> Mistral: server-side API key from env
+```
+
+Implement one MCP tool:
+
+```ts
+generate_presentation({
+  topic: string,
+  slide_count?: number,
+  audience?: string,
+  tone?: string
+}) => {
+  presentation_id: string,
+  presentation_url: string,
+  title: string
+}
+```
+
+Recommended MVP behavior:
+1. Validate arguments.
+2. Check that Google is linked via the default connection id.
+3. Generate a strict JSON outline with Mistral.
+4. Validate the outline.
+5. Refresh Google credentials if needed.
+6. Create a Google Slides deck.
+7. Populate plain title-and-bullet slides.
+8. Return the deck URL and metadata.
+
+Recommended MVP constraints:
+- Single linked Google account via `connection_id=default`.
+- Static bearer auth for MCP traffic.
+- `slide_count` default `3`, max `6`.
+- Plain slides only.
+- No images.
+- No templates.
+- No folder selection.
+- No multi-user routing yet.
+
+### Setup Notes For Next Thread
+
+Required Railway variables:
+
+```text
+CONNECTOR_BEARER_TOKEN=<shared-secret-for-vibe>
+GOOGLE_CLIENT_ID=<google-web-oauth-client-id>
+GOOGLE_CLIENT_SECRET=<google-web-oauth-client-secret>
+PUBLIC_BASE_URL=https://mistral-slides-mcp-production.up.railway.app
+TOKEN_DB_PATH=/data/tokens.sqlite3
+MISTRAL_API_KEY=<mistral-api-key>
+```
+
+Required Google OAuth redirect URIs:
+
+```text
+http://localhost:8081/
+https://mistral-slides-mcp-production.up.railway.app/auth/google/callback
+```
+
+Known local files that must stay uncommitted:
+
+```text
+.env
+google-auth-client.json
+.secrets/
+```
