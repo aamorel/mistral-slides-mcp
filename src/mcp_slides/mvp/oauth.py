@@ -31,7 +31,7 @@ REFRESH_TTL = 30 * 86400
 COOKIE = "slides_consent"
 SAFE_HEADERS = {"Cache-Control": "no-store", "Referrer-Policy": "no-referrer",
                 "X-Frame-Options": "DENY", "X-Content-Type-Options": "nosniff",
-                "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'"}
+                "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; form-action 'self' https://accounts.google.com; frame-ancestors 'none'; base-uri 'none'"}
 
 
 def digest(value: str) -> str:

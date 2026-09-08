@@ -66,6 +66,7 @@ class OAuthTests(unittest.TestCase):
         self.assertEqual(page.status_code, 200)
         self.assertIn('Continue with Google', page.text)
         self.assertEqual(page.headers['referrer-policy'], 'strict-origin')
+        self.assertIn("form-action 'self' https://accounts.google.com;", page.headers['content-security-policy'])
         self.assertIn(CALLBACK, page.text)
         ticket = parse_qs(urlparse(url).query)['request'][0]
         csrf = self.client.cookies.get(oauth.COOKIE)
