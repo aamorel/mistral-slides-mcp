@@ -846,8 +846,63 @@ Investigation 3 decision:
 - `drive.file` is sufficient for creating a new Google Slides presentation.
 - `drive.file` is sufficient for populating that presentation via `presentations.batchUpdate`.
 - Google OAuth testing mode requires the signing-in user to be added under Auth Platform `Audience`.
+- Before project review/submission, we should exit Google OAuth testing mode or explicitly add reviewer/examiner emails as test users.
+- Preferred final path is publishing the OAuth app with only non-sensitive scopes, so reviewers can authorize with their own Google accounts without being allowlisted.
 - `google-auth-oauthlib` local server flow uses `http://localhost:8081/` as the redirect URI for this script.
 - For the MVP, user-owned deck creation through user-scoped Google OAuth is feasible.
 
 Investigation 3 status:
 - Complete for standalone Google OAuth, refresh token retrieval, `presentations.create`, and `presentations.batchUpdate`.
+
+### 2026-09-08 - Investigation 4 Started: Mistral Strict JSON Outline
+
+Question:
+Can Mistral reliably generate a strict JSON presentation outline that we can validate before calling Google Slides?
+
+Implementation changes:
+- Added the official Mistral Python SDK dependency: `mistralai`.
+- Added `scripts/mistral_outline_smoke.py`.
+- The script requests JSON mode with:
+
+```python
+response_format={"type": "json_object"}
+```
+
+- The prompt still explicitly requests only a JSON object, matching Mistral's JSON mode guidance.
+- The script validates:
+  - top-level object
+  - non-empty title
+  - exact slide count
+  - each slide title
+  - exactly 3 bullets per slide
+  - simple length limits
+
+Local run command:
+
+```sh
+MISTRAL_API_KEY=<key> uv run python scripts/mistral_outline_smoke.py
+```
+
+Optional variants:
+
+```sh
+MISTRAL_API_KEY=<key> uv run python scripts/mistral_outline_smoke.py "Post-quantum cryptography for product leaders" --slide-count 3 --audience "B2B SaaS executives" --tone "direct and pragmatic"
+MISTRAL_API_KEY=<key> MISTRAL_MODEL=mistral-medium-latest uv run python scripts/mistral_outline_smoke.py "Carbon accounting basics" --slide-count 5
+```
+
+Expected behavior:
+- Script prints a valid JSON object with `title` and `slides`.
+- Validation passes.
+- Output can be passed directly to the Google Slides payload builder.
+
+What to record:
+- Which model was used.
+- Whether JSON mode returned parseable JSON.
+- Whether validation passed on the first attempt.
+- Any validation failures or shape drift.
+- Whether retry-once logic is needed before integrating into the MCP tool.
+
+Status:
+- Script created.
+- Compile check passed.
+- API run pending because `MISTRAL_API_KEY` is not present in the local environment.

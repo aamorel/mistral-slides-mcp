@@ -8,6 +8,7 @@ dependencies = [
     "google-api-python-client>=2.200.0",
     "google-auth-oauthlib>=1.4.1",
     "mcp[cli]",
+    "mistralai>=2.9.4",
 ]
 
 [project.scripts]
