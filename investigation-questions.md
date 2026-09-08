@@ -1030,7 +1030,7 @@ Status:
 - Routes created.
 - Compile check passed.
 - Local route validation passed.
-- Deployed OAuth run pending.
+- Deployed OAuth run passed.
 
 Local validation:
 - Initial custom Starlette mounting broke `/mcp` because the MCP Streamable HTTP session manager lifespan was not initialized.
@@ -1076,3 +1076,19 @@ Fix:
 - Store `flow.code_verifier` in the `oauth_states` table with the OAuth `state`.
 - Restore `flow.code_verifier` in `/auth/google/callback` before `fetch_token(...)`.
 - Added a small SQLite migration for existing `oauth_states` tables without the `code_verifier` column.
+
+Successful deployed OAuth result:
+- After deploying the PKCE verifier fix, `/auth/google/start` completed successfully.
+- Google redirected back to `/auth/google/callback`.
+- The callback exchanged the authorization code for credentials.
+- Credentials were persisted in the deployed SQLite token store.
+- `/auth/status` confirmed the Google account is linked.
+
+Investigation 5 decision:
+- The deployed MCP server can host a working Google OAuth linking flow.
+- The server can persist user-scoped Google credentials, including refresh tokens.
+- This is a viable fallback architecture if Vibe's full OAuth Connector flow is not worth implementing for the MVP.
+- Static bearer auth can protect Vibe-to-MCP traffic while Google OAuth links the user's Google account separately.
+
+Investigation 5 status:
+- Complete for deployed Google OAuth linking and token persistence.
