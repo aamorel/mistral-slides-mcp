@@ -1,7 +1,8 @@
 # MCP Slides MVP
 
-One MCP tool creates a plain Google Slides deck from a topic or supplied content, using Mistral for
-its outline and **each authenticated user's own Google account** for storage.
+Three MCP tools create, read, and revise plain Google Slides presentations.
+Generation uses a topic or supplied content, Mistral drafts the text, and
+**each authenticated user's own Google account** provides access and storage.
 
 MCP URL: https://mistral-slides-mcp-production.up.railway.app/mcp
 
@@ -218,3 +219,99 @@ validation, and browser-bound OAuth state remain enforced.
 - [Mistral: connector management and user authentication](https://docs.mistral.ai/studio/connectors/management)
 - [MCP: authorization and per-client proxy consent](https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization)
 - [Google: web-server OAuth](https://developers.google.com/identity/protocols/oauth2/web-server)
+
+## Read and revise an existing slide
+
+The connector now exposes three tools: `generate_presentation`,
+`get_presentation`, and `edit_slide`. Reading is annotated as read-only; editing
+is explicitly a mutation. The existing Google `drive.file` permission remains
+sufficient for accessible decks. The internal connector scope `slides.generate`
+retains its name for compatibility and covers all three tools; it is not a
+separate read-only permission. The consent page describes creation, reading and
+text revision.
+
+Call `get_presentation(presentation_id)` first. It reads the current Google deck,
+including manual changes, and returns `revision_id`, ordered slides with stable
+`slide_id` values, and normalized elements with `element_id`, `type`, `editable`,
+and `unsupported_reason` where applicable. Text is represented per element, not
+as a fixed title/bullets slide schema. Groups list their children; images, tables,
+charts and other elements are acknowledged without pretending their contents
+were interpreted. Image alt text is returned only when provided by Google.
+Speaker notes, inherited master/layout contents and visual previews are omitted
+explicitly in the returned limitations.
+
+After successful generation, the server instructions and generation tool description
+guide Vibe to show the deck link followed by a brief optional invitation, such as
+"You can ask me to revise a slide—for example, make slide two less technical or
+shorten the conclusion." Examples must fit the actual deck and the user's language.
+This appears in chat, not on the slides. It does not require a response or trigger
+an edit: the assistant waits for a user revision request. Actual wording and
+compliance depend on Vibe and should be checked live after refreshing its tools.
+
+```json
+{
+  "presentation_id": "ID_FROM_THE_CREATED_DECK",
+  "slide_id": "mvp_slide_2",
+  "expected_revision_id": "REVISION_FROM_GET_PRESENTATION",
+  "instructions": "Make the uncertainty explicit. Keep the budget unchanged.",
+  "source_content": "Feedback was positive, but time savings have not been measured. The budget is €5,000."
+}
+```
+
+Pass these arguments to `edit_slide`. Instructions are required (1–2,000
+characters); source text is optional (1–20,000 characters). No original brief or
+source text is persisted: supply any needed facts and constraints again. Without
+additional source text, Mistral is instructed to stay grounded in the current
+slide. These are model instructions, not factual verification.
+
+Editing is deliberately narrow:
+
+- Only ungrouped `mvp_title_N` and `mvp_body_N` text boxes with supported text
+  structure can be revised. These IDs identify the MVP layout, not ownership;
+  Google permissions enforce access. Missing/replaced/grouped boxes are not
+  reconstructed. A slide may contain additional unsupported elements; those
+  remain untouched.
+- Each paragraph must have uniform text styling and no hyperlinks or automatic
+  text fields. Boxes must have 1–10 nonempty paragraphs and at most 2,000 text
+  characters. Paragraph count stays fixed. New text is limited to the greater
+  of the current paragraph length and 100 characters for titles / 180 for body.
+- Revisions change only the specified text ranges. Newlines carrying paragraph
+  and bullet structure remain intact, and insertion occurs before deletion so
+  neighboring text styling is retained. Shapes and their geometry are not
+  rebuilt. Visual fit and live formatting still need manual verification.
+- No slide addition, removal, reordering, layout/design changes, image/chart/table
+  edits, notes edits, undo, or visual assessment. The assistant is instructed to
+  explain unsupported requests. Mistral can also decline a request; unsupported
+  and invalid proposals cause no write. Model IDs, paragraph counts and lengths
+  are validated before any write, with one retry for malformed model output.
+- A stale/missing revision fails before generation. The final atomic Google batch
+  uses `requiredRevisionId` to reject concurrent edits during generation. Writes
+  are never automatically retried. If the outcome is uncertain, read the deck
+  before deciding whether to retry.
+
+The result reports `status` (`updated` or `unchanged`), the same presentation URL,
+slide ID/position and exact `before`/`after` paragraph changes. It describes the
+acknowledged write, not a later readback or visual verification. Read again for
+any subsequent edit. Errors do not claim success or create replacement decks.
+
+Implementation references: [Google text editing](https://developers.google.com/workspace/slides/api/guides/styling)
+and [atomic batches and revision control](https://developers.google.com/workspace/slides/api/reference/rest/v1/presentations/batchUpdate).
+
+### Live acceptance checks for iteration
+
+Refresh Vibe's connector tools after deployment, then:
+
+1. Generate a deck and confirm the chat includes the link and a brief invitation
+   to request wording changes, with examples that fit its actual slide count.
+   Then ask “Make slide two less technical; keep the budget.”
+   Confirm the same link is returned and only the requested text changes.
+2. Manually change a slide in Google Slides, then request a wording revision.
+   Confirm the revision uses the manual wording and preserves bullets, fonts,
+   images, positions, and the other slides. Include an emoji in one paragraph.
+3. Request an unsupported operation, such as adding an image or reordering slides.
+   Confirm the assistant explains the limitation and makes no changes.
+4. Change the deck after reading its revision, then submit an edit with that old
+   revision. Confirm it is rejected and the manual change survives.
+5. Try an inaccessible deck from another Google account. Confirm access is denied.
+
+Automated tests mock both providers; they do not substitute for these live checks.

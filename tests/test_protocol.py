@@ -47,8 +47,11 @@ class ProtocolTests(unittest.IsolatedAsyncioTestCase):
                 async with httpx2.AsyncClient(headers={'Authorization': 'Bearer ' + alice.access_token}) as http:
                     async with Client(streamable_http_client(f'http://127.0.0.1:{port}/mcp', http_client=http)) as client:
                         tools = await client.list_tools()
-                        self.assertEqual([t.name for t in tools.tools], ['generate_presentation'])
-                        schema = tools.tools[0].input_schema
+                        discovered = {t.name: t for t in tools.tools}
+                        self.assertEqual(set(discovered), {'generate_presentation', 'get_presentation', 'edit_slide'})
+                        self.assertTrue(discovered['get_presentation'].annotations.read_only_hint)
+                        self.assertFalse(discovered['edit_slide'].annotations.read_only_hint)
+                        schema = discovered['generate_presentation'].input_schema
                         self.assertEqual(schema['properties']['basis']['enum'], ['topic', 'content'])
                         self.assertEqual(schema['properties']['basis']['default'], 'topic')
                         self.assertIn('source_content', schema['properties'])
@@ -99,6 +102,24 @@ class ProtocolTests(unittest.IsolatedAsyncioTestCase):
                         self.assertFalse(result.is_error)
                         credentials.assert_called_with('bob')
                         self.assertEqual(render.call_args.args[0], 'bob')
+                        with patch.object(server.editing, 'get_deck', return_value={'revision_id': 'rev1', 'slides': []}) as read, patch.object(server.editing, 'edit_deck_slide', return_value={'status': 'unchanged', 'changes': []}) as edit:
+                            for name, arguments in (
+                                ('get_presentation', {'presentation_id': 'https://example.com/deck'}),
+                                ('edit_slide', {'presentation_id': 'deck1', 'slide_id': 'slide1', 'instructions': 'Clarify'}),
+                                ('edit_slide', {'presentation_id': 'deck1', 'slide_id': 'slide1', 'expected_revision_id': 'rev1', 'instructions': '   '}),
+                            ):
+                                self.assertTrue((await client.call_tool(name, arguments)).is_error)
+                            read.assert_not_called()
+                            edit.assert_not_called()
+                            result = await client.call_tool('get_presentation', {'presentation_id': 'deck1'})
+                            self.assertFalse(result.is_error)
+                            read.assert_called_once_with('bob', 'deck1')
+                            result = await client.call_tool('edit_slide', {
+                                'presentation_id': 'deck1', 'slide_id': 'slide1',
+                                'expected_revision_id': 'rev1', 'instructions': 'Clarify',
+                                'source_content': 'Budget €5,000'})
+                            self.assertFalse(result.is_error)
+                            edit.assert_called_once_with('bob', 'deck1', 'slide1', 'rev1', 'Clarify', 'Budget €5,000')
             finally:
                 http_server.should_exit = True
                 await task

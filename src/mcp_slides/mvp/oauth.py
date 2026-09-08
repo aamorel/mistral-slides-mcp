@@ -117,7 +117,7 @@ class GoogleOAuthProvider(OAuthAuthorizationServerProvider[AuthorizationCode, Re
 <meta name="viewport" content="width=device-width, initial-scale=1"><title>Connect Google Slides</title>
 <style>body{{font:18px/1.5 system-ui;max-width:620px;margin:10vh auto;padding:24px;color:#18202a}}button{{font:inherit;padding:12px 20px;cursor:pointer}}small{{overflow-wrap:anywhere}}</style>
 <h1>Connect your Google account</h1>
-<p><strong>{name}</strong> is requesting permission to generate presentations in your Google Drive through MCP Slides.</p>
+<p><strong>{name}</strong> is requesting permission to create, read, and revise supported presentation text in your Google Drive through MCP Slides.</p>
 <p>You will choose your Google account next. Google credentials stay on this server; the connector receives its own access token.</p>
 <p><small>Return address: {callback}</small></p>
 <form method="post" action="/auth/google/start">
