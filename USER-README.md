@@ -17,6 +17,12 @@ Every new deck includes an extra title slide with a generated background image.
 “Three slides” creates one cover plus three content slides. Image generation may
 take a little longer; the title stays editable.
 
+The connector chooses between a key message, 1–5 bullets, a two-column comparison,
+and numbered steps to suit your material. You can ask for a specific structure:
+“Compare feature phones and smartphones, then explain how a call connects.”
+You can revise wording in each layout; adding/removing bullets or steps and
+converting an existing slide to another layout are not supported yet.
+
 The presentation should appear in **your Google Drive**. Open the returned link—or open it directly in Drive if the link doesn’t work.
 
 For a different look, ask: “Change my default background to cream and my font to

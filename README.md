@@ -143,7 +143,7 @@ after deploying this change. No additional authorization scopes are needed.
 
 `slide_count` defaults to 3
 and must be an integer from 1 to 6. Optional audience and tone are limited to 300
-and 200 characters. Each content slide has a title and three bullets. A new opening title slide
+and 200 characters. Each content slide uses a key message, bullets, comparison, or steps layout. A new opening title slide
 with a generated background image is always added: `slide_count=3` means four
 slides total (one cover plus three content slides). The return value contains `presentation_id`, `presentation_url`,
 `title`, the applied `style_settings`, `content_slide_count`, `total_slide_count`, and
@@ -171,6 +171,33 @@ is retried once and validated before deck creation. If population fails after
 creation, the error includes the created deck URL; review it before retrying.
 Calls are not idempotent: repeated requests create another deck.
 
+## Content slide types
+
+The public generation arguments are unchanged. Mistral selects an internal `type`
+for each content slide, based on the material. Users may request types through
+`instructions`; there is no required layout-selection step. Both topic and content
+mode support all types. Content mode must not invent facts to manufacture variety.
+
+| Type | Content | Limits |
+| --- | --- | --- |
+| `key_message` | Title and a large unbulleted statement | Message ≤180 characters |
+| `bullets` | Title and 1–5 bullets | Each ≤140 characters; total ≤420 |
+| `comparison` | Title and two columns, each with a heading and 1–3 bullets | Heading ≤40; each bullet ≤80; total ≤180 per column |
+| `steps` | Title and 2–5 numbered steps | Each ≤100 characters; total ≤350 |
+
+Deck/slide titles are limited to 80 characters. Text must be single-line and
+nonempty. Unknown types, extra fields, and over-budget content are rejected;
+Mistral gets one retry before generation fails. The renderer validates again
+before creating a Google file. `layouts.py` defines fixed geometry and stable text
+roles, shared with reading, editing, and default styling. Mistral supplies content,
+never coordinates or Google API requests.
+
+All four types support wording edits and applying the default style. Existing
+simple title/bullet decks remain editable. Edits preserve each box's paragraph
+count and native bullet/number markers; adding/removing items and converting slide
+types remain unsupported. Font sizes and text budgets are conservative, but live
+visual fit still needs checking, especially with customized fonts and long words.
+
 ## Diagnosing an incorrect link in a chat answer
 
 Open the presentation directly in Drive and compare its address with the raw
@@ -193,7 +220,7 @@ deployment to pick up the verbatim-link guidance.
 
 ## Code and local tests
 
-- `src/mcp_slides/mvp/`: application (`server`, `oauth`, `auth`, `outline`, `slides`, `editing`, `styling`, `preferences`, `backgrounds`).
+- `src/mcp_slides/mvp/`: application (`server`, `oauth`, `auth`, `outline`, `layouts`, `slides`, `editing`, `styling`, `preferences`, `backgrounds`).
 - `scripts/`, `src/mcp_slides/ping_server.py`, `src/mcp_slides/google_auth.py`:
   preserved investigation code, never imported by the MVP.
 - `tests/`: Google consent/PKCE/refresh/revocation tests through HTTP, credential
@@ -306,7 +333,8 @@ slide. These are model instructions, not factual verification.
 
 Editing is deliberately narrow:
 
-- Only ungrouped `mvp_title_N` and `mvp_body_N` text boxes with supported text
+- Only recognized original ungrouped text boxes (titles, bodies, key messages,
+  comparison headings/columns, and steps) with supported text
   structure can be revised. These IDs identify the MVP layout, not ownership;
   Google permissions enforce access. Missing/replaced/grouped boxes are not
   reconstructed. A slide may contain additional unsupported elements; those
@@ -314,7 +342,8 @@ Editing is deliberately narrow:
 - Each paragraph must have uniform text styling and no hyperlinks or automatic
   text fields. Boxes must have 1–10 nonempty paragraphs and at most 2,000 text
   characters. Paragraph count stays fixed. New text is limited to the greater
-  of the current paragraph length and 100 characters for titles / 180 for body.
+  of the current paragraph length and its role-specific limit, while respecting
+  a total box budget (or its current total length when already longer).
 - Revisions change only the specified text ranges. Newlines carrying paragraph
   and bullet structure remain intact, and insertion occurs before deletion so
   neighboring text styling is retained. Shapes and their geometry are not

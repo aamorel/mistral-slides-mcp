@@ -11,7 +11,7 @@ from starlette.testclient import TestClient
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp_slides.mvp import preferences, auth, outline, server, slides
 
-OUTLINE = {"title": "Demo", "slides": [{"title": "First", "bullets": ["A", "B", "C"]}]}
+OUTLINE = {"title": "Demo", "slides": [{"type": "bullets", "title": "First", "bullets": ["A", "B", "C"]}]}
 ENV = {"CONNECTOR_BEARER_TOKEN": "test-secret", "GOOGLE_CLIENT_ID": "test-client",
        "GOOGLE_CLIENT_SECRET": "test-client-secret", "PUBLIC_BASE_URL": "https://example.com",
        "MISTRAL_API_KEY": "test-key"}
@@ -25,7 +25,7 @@ class MVPTests(unittest.TestCase):
 
     def test_outline_validation(self):
         self.assertEqual(outline.validate_outline(OUTLINE, 1), OUTLINE)
-        for bad in ({}, {**OUTLINE, 'slides': []}, {**OUTLINE, 'slides': [{'title': 'A', 'bullets': ['a']}]}):
+        for bad in ({}, {**OUTLINE, 'slides': []}, {**OUTLINE, 'slides': [{'type': 'bullets', 'title': 'A', 'bullets': []}]}):
             with self.assertRaises(ValueError):
                 outline.validate_outline(bad, 1)
 

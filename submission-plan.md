@@ -3,13 +3,16 @@
 Goal: deliver a working deployed connector, a clear repository, and an
 implementation I can explain and maintain confidently.
 
-Keep the current feature scope: generate from a topic or source content, read a
-deck, customize default colors/font for future decks, and revise supported text on one slide. Focus on finishing and validating
-these flows rather than adding features.
+Feature-freeze candidate: generate from topic or source content using key messages,
+flexible bullets, comparisons, and steps; read decks; revise supported text; save
+and apply default colors/font; and automatically generate an image cover.
+After acceptance testing these flows, freeze new features and focus on correctness,
+visual fit, deployment, OAuth publishing, repository cleanup, and code ownership.
+Adding/removing items and converting existing layouts remain deferred.
 
 ## 1. Understand and own the code
 
-- [ ] Trace generation: `server.py` → `outline.py` → `slides.py`.
+- [ ] Trace generation: `server.py` → `outline.py` → `layouts.py` / `slides.py`.
   Explain inputs, Mistral instructions, validation, Google writes, and partial failures.
 - [ ] Trace reading and editing: `server.py` → `editing.py`.
   Explain element IDs, supported text, paragraph preservation, revision checks,
@@ -89,6 +92,13 @@ Google and Mistral; these checks exercise the real providers and conversation.
 - [ ] Generate with built-in defaults and customized colors/font. Check visual fit,
   contrast, bullets, and wording revisions in each. Confirm style discovery is brief and
   distinguishes saving defaults from explicitly applying them to an existing deck.
+- [ ] Generate all four content types in topic and content mode. Check short and
+  maximum-length content, 1 and 5 bullets, asymmetric comparisons, and numbered
+  steps in each supported font. Inspect overflow, column spacing and readability.
+- [ ] Revise a comparison column and a numbered step; verify neighboring text,
+  paragraph counts and numbering remain intact. Apply defaults to all four types.
+- [ ] Confirm unsupported requests to add/remove items or convert layouts are
+  acknowledged without silently rewriting or creating a replacement deck.
 - [ ] Apply saved defaults to an existing deck. Verify the same URL, updated
   colors/font and cover band, unchanged text/layout/image, and skipped-slide
   reporting. Check revision conflicts and readback of actual formatting.

@@ -23,7 +23,7 @@ Image.new('RGB', (1600, 900), '#FAF5EB').save(buffer, format='PNG')
 PNG = buffer.getvalue()
 ENV = {'GOOGLE_CLIENT_ID': 'test', 'GOOGLE_CLIENT_SECRET': 'test',
        'PUBLIC_BASE_URL': 'https://example.com', 'MISTRAL_API_KEY': 'test'}
-OUTLINE = {'title': 'Phones', 'slides': [{'title': 'History', 'bullets': ['A', 'B', 'C']}]}
+OUTLINE = {'title': 'Phones', 'slides': [{'type': 'bullets', 'title': 'History', 'bullets': ['A', 'B', 'C']}]}
 
 
 class PreferenceAndImageTests(unittest.TestCase):

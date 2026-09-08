@@ -26,24 +26,26 @@ def build_prompt(
     return f"""
 Return only a valid JSON object for a short slide presentation.
 
-Schema:
-{{
-  "title": "string",
-  "slides": [
-    {{
-      "title": "string",
-      "bullets": ["string", "string", "string"]
-    }}
-  ]
-}}
+Schema: {{"title":"string", "slides":[slide, ...]}}
+Each slide must use exactly one of these structures:
+- {{"type":"bullets", "title":"string", "bullets":["string", ...]}}
+- {{"type":"key_message", "title":"string", "message":"string"}}
+- {{"type":"comparison", "title":"string", "left":{{"heading":"string", "bullets":["string", ...]}}, "right":{{"heading":"string", "bullets":["string", ...]}}}}
+- {{"type":"steps", "title":"string", "steps":["string", ...]}}
 
 Rules:
-- Produce exactly {slide_count} slides.
-- Each slide must have exactly 3 bullets.
-- Each title must be 80 characters or fewer.
-- Each bullet must be 140 characters or fewer.
-- Do not include markdown.
-- Do not include commentary outside the JSON object.
+- Produce exactly {slide_count} content slides; the renderer adds the cover.
+- Choose types to suit the material in both topic and content mode. Use a key
+  message for one takeaway, bullets for supporting points, comparison for two
+  alternatives, and steps for an ordered process. Do not force variety or invent
+  comparisons/processes absent from source material. Honor requested types in instructions.
+- Titles: at most 80 characters. Key message: at most 180 characters.
+- Bullets: 1–5 items, at most 140 characters each and 420 combined.
+- Steps: 2–5 items, at most 100 characters each and 350 combined. No numbering in text.
+- Each comparison side: heading at most 40 characters, 1–3 bullets of at most
+  80 characters each and 180 combined. The two sides need not have equal counts.
+- All text must be nonempty, single-line plain text. No markdown or bullet prefixes.
+- No extra fields, commentary, Google API calls, or layout coordinates.
 
 Presentation brief (JSON):
 {brief}
@@ -69,58 +71,53 @@ has been performed. Never claim otherwise.
 """
 
 
+def text(value, limit):
+    if (not isinstance(value, str) or not value.strip() or len(value) > limit
+            or any(ord(c) < 32 or 0x7f <= ord(c) <= 0x9f or c in '\u2028\u2029' for c in value)):
+        raise ValueError(f'Text must be one nonempty line of at most {limit} characters')
+    return value.strip()
+
+
+def items(value, minimum, maximum, limit, budget):
+    if not isinstance(value, list) or not minimum <= len(value) <= maximum:
+        raise ValueError('Invalid item count')
+    result = [text(item, limit) for item in value]
+    if sum(map(len, result)) > budget:
+        raise ValueError('Slide text budget exceeded')
+    return result
+
+
 def validate_outline(value: Any, slide_count: int) -> dict[str, Any]:
-    if not isinstance(value, dict):
-        raise ValueError("outline must be a JSON object")
-
-    title = value.get("title")
-    if not isinstance(title, str) or not title.strip():
-        raise ValueError("outline.title must be a non-empty string")
-    if len(title) > 100:
-        raise ValueError("outline.title is too long")
-
-    slides = value.get("slides")
-    if not isinstance(slides, list):
-        raise ValueError("outline.slides must be a list")
-    if len(slides) != slide_count:
-        raise ValueError(f"outline.slides must contain exactly {slide_count} slides")
-
-    normalized_slides: list[dict[str, Any]] = []
-    for index, slide in enumerate(slides, start=1):
+    if not isinstance(value, dict) or set(value) != {'title', 'slides'}:
+        raise ValueError('Expected title and slides')
+    title = text(value['title'], 80)
+    if not isinstance(value['slides'], list) or len(value['slides']) != slide_count:
+        raise ValueError('Incorrect slide count')
+    result = []
+    fields = {'bullets': {'bullets'}, 'key_message': {'message'},
+              'comparison': {'left', 'right'}, 'steps': {'steps'}}
+    for slide in value['slides']:
         if not isinstance(slide, dict):
-            raise ValueError(f"slide {index} must be an object")
-
-        slide_title = slide.get("title")
-        if not isinstance(slide_title, str) or not slide_title.strip():
-            raise ValueError(f"slide {index}.title must be a non-empty string")
-        if len(slide_title) > 100:
-            raise ValueError(f"slide {index}.title is too long")
-
-        bullets = slide.get("bullets")
-        if not isinstance(bullets, list):
-            raise ValueError(f"slide {index}.bullets must be a list")
-        if len(bullets) != 3:
-            raise ValueError(f"slide {index}.bullets must contain exactly 3 bullets")
-
-        normalized_bullets: list[str] = []
-        for bullet_index, bullet in enumerate(bullets, start=1):
-            if not isinstance(bullet, str) or not bullet.strip():
-                raise ValueError(f"slide {index}.bullets[{bullet_index}] must be a non-empty string")
-            if len(bullet) > 180:
-                raise ValueError(f"slide {index}.bullets[{bullet_index}] is too long")
-            normalized_bullets.append(bullet.strip())
-
-        normalized_slides.append(
-            {
-                "title": slide_title.strip(),
-                "bullets": normalized_bullets,
-            }
-        )
-
-    return {
-        "title": title.strip(),
-        "slides": normalized_slides,
-    }
+            raise ValueError('Invalid slide')
+        kind = slide.get('type')
+        if not isinstance(kind, str) or kind not in fields or set(slide) != {'type', 'title'} | fields[kind]:
+            raise ValueError('Unsupported slide type or fields')
+        normalized = {'type': kind, 'title': text(slide['title'], 80)}
+        if kind == 'bullets':
+            normalized['bullets'] = items(slide['bullets'], 1, 5, 140, 420)
+        elif kind == 'steps':
+            normalized['steps'] = items(slide['steps'], 2, 5, 100, 350)
+        elif kind == 'key_message':
+            normalized['message'] = text(slide['message'], 180)
+        else:
+            for side in ('left', 'right'):
+                column = slide[side]
+                if not isinstance(column, dict) or set(column) != {'heading', 'bullets'}:
+                    raise ValueError('Invalid comparison column')
+                normalized[side] = {'heading': text(column['heading'], 40),
+                    'bullets': items(column['bullets'], 1, 3, 80, 180)}
+        result.append(normalized)
+    return {'title': title, 'slides': result}
 
 
 def generate_outline(

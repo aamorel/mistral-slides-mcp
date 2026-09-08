@@ -29,7 +29,8 @@ The MVP proves that a user can connect the MCP in Vibe, authorize their own Goog
   instructions. Existing topic-only calls remain supported.
 - Optional instructions are passed to Mistral in both modes. The calling assistant
   supplies relevant conversation or notes as text; the tool cannot retrieve them.
-- Mistral-generated content: 1–6 content slides, each with a title and three bullets, using a simple layout.
+- Mistral-generated content: 1–6 content slides, each using a key message, 1–5 bullets, two-column comparison, or 2–5 numbered steps.
+  Strict per-type schemas and text budgets; fixed layouts selected from the material.
 - Creation of a new Google Slides deck and return of its title, ID, and URL.
 - Separate MVP code in this package; investigation scripts remain separate.
 
@@ -58,6 +59,7 @@ The user has tested the live authorization and generation flow successfully. A b
 
 - Public onboarding without adding Google tester emails: see the [OAuth publishing plan](../../../oauth-publishing-plan.md).
 - Richer layouts, content-slide images, image editing, user templates, native theme import and arbitrary restyling.
+- Adding/removing list items or converting existing slide types.
 - Structural or general visual editing, arbitrary/richly styled text boxes, speaker notes,
   source-brief persistence, undo, folder selection, and export formats.
 - Broad public-launch readiness, including usage limits and further credential-storage review.

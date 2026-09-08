@@ -4,6 +4,7 @@ import re
 from googleapiclient.errors import HttpError
 
 from .slides import rgb
+from .layouts import color_role
 
 
 def inspect_slide(page):
@@ -29,7 +30,7 @@ def inspect_slide(page):
             band = element
             continue
         normalized = normalize_element(element)
-        if normalized['editable'] and element_id in (f'mvp_title_{suffix}', f'mvp_body_{suffix}'):
+        if normalized['editable'] and element_id.rsplit('_', 1)[-1] == suffix:
             texts.append(element)
         else:
             reasons.append(f'{element_id}: unsupported element; preserved unchanged.')
@@ -74,7 +75,7 @@ def apply_style(creds, presentation_id, expected_revision_id, settings):
             requests.append({'updateShapeProperties': {'objectId': inspected['band']['objectId'],
                 'shapeProperties': {'shapeBackgroundFill': fill}, 'fields': 'shapeBackgroundFill'}})
         for element in inspected['texts']:
-            kind = 'title' if element['objectId'].startswith('mvp_title_') else 'body'
+            kind = color_role(element['objectId'])
             requests.append({'updateTextStyle': {'objectId': element['objectId'],
                 'textRange': {'type': 'ALL'}, 'style': {'fontFamily': palette['font_family'],
                     'foregroundColor': {'opaqueColor': {'rgbColor': rgb(palette[kind])}}},

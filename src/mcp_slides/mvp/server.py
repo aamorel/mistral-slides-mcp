@@ -60,6 +60,14 @@ async def generate_presentation(
     switching to topic mode. Briefly state the chosen approach and call the tool
     in the same turn, without waiting for confirmation.
 
+    Content slides can be a key message, 1–5 bullets, a two-column comparison,
+    or 2–5 numbered steps. Mistral chooses a suitable type from the material;
+    users do not need to choose. Pass requested types in instructions. The renderer
+    uses fixed layouts and validated text budgets, not arbitrary Google API calls.
+    Both topic and content mode support all types; never force unsupported facts
+    or artificial variety into supplied content. Later text edits preserve item
+    counts and slide types; adding/removing items or converting layouts is unsupported.
+
     Every generation creates a new title slide with a Mistral-generated background
     image, in addition to slide_count content slides. Report total_slide_count;
     do not count the cover as a content slide. Default produces four slides total.
@@ -281,7 +289,8 @@ async def edit_slide(
     """Revise supported text on ONE existing slide, updating the same deck URL.
 
     First call get_presentation; use its slide_id and revision_id verbatim. Only
-    editable=true original MVP text boxes are supported. Preserve paragraph counts,
+    editable=true original recognized text boxes are supported, including comparison
+    headings/columns, key messages and steps. Preserve paragraph counts,
     formatting, layout, all other slides and unsupported elements. No adding,
     deleting, moving slides, design changes, images/charts/tables/notes edits, undo,
     or visual assessment. Explain unsupported requests rather than calling this
