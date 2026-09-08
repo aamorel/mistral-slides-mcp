@@ -32,6 +32,28 @@ class MVPTests(unittest.TestCase):
                 self.assertIn('code_challenge=', result.headers['location'])
                 self.assertIn('HttpOnly', result.headers['set-cookie'])
 
+    def test_connector_header_compatibility_and_safe_logs(self):
+        from starlette.responses import JSONResponse
+        from starlette.applications import Starlette
+        from starlette.routing import Route
+
+        async def endpoint(request):
+            return JSONResponse({"ok": True})
+
+        app = Starlette(routes=[Route('/{path:path}', endpoint, methods=['GET', 'POST'])])
+        with TestClient(server.Authentication(app, 'test-secret')) as client:
+            with self.assertLogs('uvicorn.error', level='INFO') as logs:
+                for header in ('Bearer test-secret', 'test-secret', '  bearer   test-secret  '):
+                    self.assertEqual(client.post('/mcp', headers={'Authorization': header}).status_code, 200)
+                self.assertEqual(client.post('/mcp').status_code, 401)
+                self.assertEqual(client.post('/mcp', headers={'Authorization': 'Bearer wrong-private-token'}).status_code, 401)
+                client.get('/auth/google/callback?code=private-google-code&state=private-state')
+            output = '\n'.join(logs.output)
+            for secret in ('test-secret', 'wrong-private-token', 'private-google-code', 'private-state'):
+                self.assertNotIn(secret, output)
+            for outcome in ('auth=accepted', 'auth=missing', 'auth=invalid', 'status=200', 'status=401'):
+                self.assertIn(outcome, output)
+
     def test_callback_state_pkce_and_replay(self):
         with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {**ENV, "TOKEN_DB_PATH": str(Path(temp) / 'tokens.db')}), TestClient(server.create_app(), base_url='https://example.com') as client:
             client.get('/auth/google/start', auth=('admin', 'test-secret'), follow_redirects=False)

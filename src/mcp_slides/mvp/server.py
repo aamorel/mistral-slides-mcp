@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import base64
 import hmac
+import logging
+import time
 import os
 from typing import Annotated
 from urllib.parse import urlparse
@@ -71,30 +73,71 @@ async def status(request):
     return await run_in_threadpool(auth.google_auth_status, request)
 
 
+logger = logging.getLogger("uvicorn.error")
+
+
+def connector_token(header: str) -> str:
+    """Keep the investigation connector's bare-token and whitespace compatibility."""
+    value = header.strip()
+    if value.lower().startswith("bearer "):
+        return value.split(" ", 1)[1].strip()
+    return value
+
+
 class Authentication:
     def __init__(self, app, token):
         self.app, self.token = app, token
 
     async def __call__(self, scope, receive, send):
-        if scope["type"] == "http":
-            path = scope["path"]
-            admin = path in ("/auth/google/start", "/auth/status")
-            if admin or path.startswith("/mcp"):
-                header = dict(scope.get("headers", [])).get(b"authorization", b"").decode("latin-1")
-                scheme, _, value = header.partition(" ")
-                provided = value if scheme.lower() == "bearer" else ""
-                if admin and scheme.lower() == "basic":
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        path = scope["path"]
+        admin = path in ("/auth/google/start", "/auth/status")
+        protected = admin or path.startswith("/mcp")
+        header = dict(scope.get("headers", [])).get(b"authorization", b"").decode("latin-1").strip()
+        scheme, _, value = header.partition(" ")
+        auth_format = (scheme.lower() if scheme.lower() in ("bearer", "basic")
+                       else "custom" if header else "none")
+        auth_result = "not_required"
+        if protected:
+            provided = connector_token(header)
+            if scheme.lower() == "basic":
+                provided = ""
+                if admin:
                     try:
                         user, _, password = base64.b64decode(value, validate=True).decode().partition(":")
                         provided = password if user == "admin" else ""
                     except (ValueError, UnicodeError):
-                        provided = ""
-                if not hmac.compare_digest(provided.encode(), self.token.encode()):
-                    challenge = 'Basic realm="Google linking", charset="UTF-8"' if admin else "Bearer"
-                    await JSONResponse({"error": "Authentication required"}, status_code=401,
-                                       headers={"WWW-Authenticate": challenge})(scope, receive, send)
-                    return
-        await self.app(scope, receive, send)
+                        pass
+            auth_result = ("accepted" if hmac.compare_digest(provided.encode(), self.token.encode())
+                           else "missing" if not header else "invalid")
+
+        # Only fixed route labels and authentication outcomes: no query strings,
+        # header values, token fingerprints, request bodies or Google codes.
+        route = path if path in ("/mcp", "/mcp/", "/health", "/auth/google/start",
+                                 "/auth/google/callback", "/auth/status") else "other"
+        method = scope.get("method", "")
+        method = method if method in ("GET", "POST", "DELETE", "HEAD", "OPTIONS", "PUT", "PATCH") else "other"
+        started = time.monotonic()
+        if path != "/health":
+            logger.info("http_request method=%s route=%s auth=%s format=%s",
+                        method, route, auth_result, auth_format)
+
+        async def logged_send(message):
+            if message["type"] == "http.response.start" and path != "/health":
+                logger.info("http_response method=%s route=%s status=%s auth=%s elapsed_ms=%d",
+                            method, route, message["status"], auth_result,
+                            int((time.monotonic() - started) * 1000))
+            await send(message)
+
+        if auth_result in ("missing", "invalid"):
+            challenge = 'Basic realm="Google linking", charset="UTF-8"' if admin else "Bearer"
+            await JSONResponse({"error": "Authentication required"}, status_code=401,
+                               headers={"WWW-Authenticate": challenge})(scope, receive, logged_send)
+            return
+        await self.app(scope, receive, logged_send)
 
 
 def create_app():

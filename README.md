@@ -94,6 +94,9 @@ and URL variables; it never silently exposes an unauthenticated MCP endpoint.
 
 SQLite credentials remain plaintext, matching the investigated MVP tradeoff.
 Protect the volume and secrets. OAuth state is short-lived, single-use, bound to
-the initiating browser, and stores the PKCE verifier. HTTP access logging is
-turned off to avoid logging callback codes. Multi-user OAuth, token encryption,
+the initiating browser, and stores the PKCE verifier. Raw HTTP access logging is
+turned off to avoid logging callback codes. Safe request logs show the route,
+method, response status, and auth outcome (`missing`, `invalid`, or `accepted`),
+without tokens, fingerprints, or query strings. The legacy bare-token header
+format remains supported, but `Authorization: Bearer <token>` is recommended. Multi-user OAuth, token encryption,
 themes, images, and templates are deferred.
