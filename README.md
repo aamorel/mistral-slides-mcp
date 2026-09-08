@@ -112,6 +112,26 @@ is retried once and validated before deck creation. If population fails after
 creation, the error includes the created deck URL; review it before retrying.
 Calls are not idempotent: repeated requests create another deck.
 
+## Diagnosing an incorrect link in a chat answer
+
+Open the presentation directly in Drive and compare its address with the raw
+`generate_presentation` tool result's `presentation_url`. The tool uses Google's
+returned `presentationId` directly and returns a URL ending in `/edit`. The model
+is instructed to copy this URL verbatim; this is guidance, not a guarantee that
+its final answer will preserve it.
+
+On each successful tool call, Railway logs `presentation_result url_sha256=...`.
+This is the SHA-256 hash of the exact UTF-8 URL returned by the tool. Compare a
+candidate URL locally without writing the private deck link to server logs:
+
+```sh
+python -c 'import hashlib; print(hashlib.sha256(input("URL: ").encode()).hexdigest())'
+```
+
+A mismatch means that candidate URL differs from the tool's return value. It does
+not by itself prove who changed it. Refresh the connector's tool definitions after
+deployment to pick up the verbatim-link guidance.
+
 ## Code and local tests
 
 - `src/mcp_slides/mvp/`: application (`server`, `oauth`, `auth`, `outline`, `slides`).

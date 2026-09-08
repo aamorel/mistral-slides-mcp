@@ -1,6 +1,7 @@
 """Presentation generator with per-user connector OAuth."""
 from __future__ import annotations
 
+import hashlib
 import logging
 import os
 import time
@@ -29,7 +30,13 @@ async def generate_presentation(
     audience: Annotated[str | None, Field(max_length=300)] = None,
     tone: Annotated[str | None, Field(max_length=200)] = None,
 ) -> dict[str, str]:
-    """Generate 1–6 title-and-bullet slides and return the Google Slides URL. Creates slides in the authenticated user's Google Drive."""
+    """Create 1–6 slides in the authenticated user's Google Drive.
+
+    After a successful call, copy presentation_url from the result verbatim into
+    the user's clickable link. Never invent a URL, reconstruct the opaque Google
+    presentation ID, or add query parameters. Only report a created presentation
+    when this tool actually returns a successful result.
+    """
     if not topic.strip():
         raise ToolError("Topic must not be blank.")
     token = get_access_token()
@@ -49,7 +56,12 @@ async def generate_presentation(
     except Exception:
         raise ToolError("Mistral could not generate a valid outline. Check the API key or try again.") from None
     try:
-        return await run_in_threadpool(slides.create_deck, creds, content)
+        result = await run_in_threadpool(slides.create_deck, creds, content)
+        # Correlate the exact returned URL with a reported link without exposing
+        # private deck IDs, titles, URLs or Google credentials in Railway logs.
+        logger.info("presentation_result url_sha256=%s",
+                    hashlib.sha256(result["presentation_url"].encode()).hexdigest())
+        return result
     except RuntimeError as exc:
         raise ToolError(str(exc)) from None
     except Exception:
@@ -104,7 +116,9 @@ def create_app():
         raise RuntimeError("PUBLIC_BASE_URL must be an HTTPS origin (HTTP allowed only on localhost).")
     provider = GoogleOAuthProvider(base_url)
     mcp = MCPServer(
-        "mcp-slides", instructions="Create Google Slides presentations in the authenticated user's own Google Drive.",
+        "mcp-slides", instructions=("Create Google Slides presentations in the authenticated user's own Google Drive. "
+                      "Copy presentation_url verbatim from a successful generate_presentation result. "
+                      "Never fabricate or rewrite presentation IDs or URLs."),
         auth_server_provider=provider,
         auth=AuthSettings(issuer_url=base_url, resource_server_url=provider.resource,
             required_scopes=[SCOPE], validate_token_resource=True,

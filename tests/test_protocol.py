@@ -1,5 +1,7 @@
 """Exercise discovery and invocation over real Streamable HTTP with mocked APIs."""
 import asyncio
+import hashlib
+import json
 import os
 import socket
 import tempfile
@@ -50,9 +52,15 @@ class ProtocolTests(unittest.IsolatedAsyncioTestCase):
                             result = await client.call_tool('generate_presentation', arguments)
                             self.assertTrue(result.is_error)
                         generate.assert_not_called()
-                        result = await client.call_tool('generate_presentation', {'topic': 'Demo'})
+                        with self.assertLogs('uvicorn.error', level='INFO') as logs:
+                            result = await client.call_tool('generate_presentation', {'topic': 'Demo'})
+                        diagnostic = '\n'.join(logs.output)
+                        self.assertIn(hashlib.sha256(RESULT['presentation_url'].encode()).hexdigest(), diagnostic)
+                        self.assertNotIn(RESULT['presentation_url'], diagnostic)
                         self.assertFalse(result.is_error)
                         self.assertEqual(result.structured_content, RESULT)
+                        text_outputs = [part.text for part in result.content if part.type == 'text']
+                        self.assertEqual(json.loads(text_outputs[0])['presentation_url'], RESULT['presentation_url'])
                         credentials.assert_called_with('alice')
                         self.assertEqual(render.call_args.args[0], 'alice')
                 async with httpx2.AsyncClient(headers={'Authorization': 'Bearer ' + bob.access_token}) as http:
