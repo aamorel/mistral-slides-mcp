@@ -149,8 +149,13 @@ async def google_auth_callback(request: Request) -> Response:
 
         base_url = get_base_url(request)
         redirect_uri = f"{base_url}/auth/google/callback"
+        query_string = request.url.query
+        authorization_response = redirect_uri
+        if query_string:
+            authorization_response = f"{authorization_response}?{query_string}"
+
         flow = create_flow(redirect_uri)
-        flow.fetch_token(authorization_response=str(request.url))
+        flow.fetch_token(authorization_response=authorization_response)
 
         credentials_json = flow.credentials.to_json()
         db.execute(
@@ -183,4 +188,3 @@ async def google_auth_callback(request: Request) -> Response:
 async def google_auth_status(request: Request) -> Response:
     connection_id = get_connection_id(request)
     return JSONResponse(token_status(connection_id))
-

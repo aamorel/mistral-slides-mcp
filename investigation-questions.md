@@ -1039,3 +1039,22 @@ Local validation:
   - `GET /health` returns `{"ok": true}`.
   - `GET /auth/status` returns `{"linked": false, "connection_id": "default"}` before auth.
   - MCP smoke client still discovers and calls `ping`.
+
+First deployed OAuth run result:
+- `GET /auth/status` returned `200 OK`.
+- `GET /auth/google/start` redirected to Google successfully.
+- Google redirected back to `/auth/google/callback` with an authorization code.
+- Callback failed with:
+
+```text
+oauthlib.oauth2.rfc6749.errors.InsecureTransportError: OAuth 2 MUST utilize https.
+```
+
+Cause:
+- Railway terminates HTTPS at the edge and forwards to the app internally.
+- Starlette's `request.url` appeared as `http://...` inside the container.
+- OAuthlib rejected the token exchange because the authorization response URL was reconstructed from the internal HTTP URL.
+
+Fix:
+- Reconstruct the callback authorization response URL from `PUBLIC_BASE_URL` plus the callback query string.
+- This keeps the URL passed to OAuthlib as `https://mistral-slides-mcp-production.up.railway.app/auth/google/callback?...`.
