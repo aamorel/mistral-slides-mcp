@@ -783,7 +783,7 @@ What to record:
 Status:
 - Script created.
 - Compile check passed.
-- OAuth/API run pending.
+- OAuth/API run passed.
 
 First OAuth run result:
 - Google opened the consent URL but blocked it with `Error 400: redirect_uri_mismatch`.
@@ -800,3 +800,54 @@ http://localhost:8081/oauth2callback
 ```
 
 - Next action: add `http://localhost:8081/` exactly to the Google OAuth client's Authorized redirect URIs, then rerun the script.
+
+Second OAuth run result:
+- The redirect URI mismatch was resolved.
+- Google then blocked authorization with `Error 403: access_denied`.
+- Error message said the app is still in testing and only approved testers can access it.
+- This confirms the OAuth app is in testing mode and the signing-in Google account must be explicitly added as a test user.
+
+Next action:
+- In Google Auth Platform, open `Audience`.
+- Add this account as a test user:
+
+```text
+aurelien.morel.arthur@gmail.com
+```
+
+- Save the audience/test-user settings.
+- Rerun:
+
+```sh
+uv run python scripts/google_slides_smoke.py
+```
+
+Successful OAuth/API run result:
+- After adding the Google account as a test user, OAuth completed successfully.
+- The script requested only:
+
+```text
+https://www.googleapis.com/auth/drive.file
+```
+
+- The script created and populated a real Google Slides deck.
+- Created presentation:
+
+```text
+title: MCP Slides Smoke Test
+presentation_id: 1YpurXOxYIEFZj0NGwlFBajpzWXAXJeQ7oBbp0DO2T-Q
+presentation_url: https://docs.google.com/presentation/d/1YpurXOxYIEFZj0NGwlFBajpzWXAXJeQ7oBbp0DO2T-Q/edit
+```
+
+- Token cache was created at `.secrets/google-token-drive-file.json`.
+- The cached token JSON includes a `refresh_token`.
+
+Investigation 3 decision:
+- `drive.file` is sufficient for creating a new Google Slides presentation.
+- `drive.file` is sufficient for populating that presentation via `presentations.batchUpdate`.
+- Google OAuth testing mode requires the signing-in user to be added under Auth Platform `Audience`.
+- `google-auth-oauthlib` local server flow uses `http://localhost:8081/` as the redirect URI for this script.
+- For the MVP, user-owned deck creation through user-scoped Google OAuth is feasible.
+
+Investigation 3 status:
+- Complete for standalone Google OAuth, refresh token retrieval, `presentations.create`, and `presentations.batchUpdate`.
