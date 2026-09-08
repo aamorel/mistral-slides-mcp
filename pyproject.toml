@@ -12,6 +12,7 @@ dependencies = [
 ]
 
 [project.scripts]
+mcp-slides = "mcp_slides.mvp.server:main"
 mcp-slides-ping = "mcp_slides.ping_server:main"
 
 [build-system]

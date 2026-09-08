@@ -4,6 +4,7 @@
     "builder": "RAILPACK"
   },
   "deploy": {
-    "startCommand": "uv run mcp-slides-ping"
+    "startCommand": "uv run mcp-slides",
+    "healthcheckPath": "/health"
   }
 }
