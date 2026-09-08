@@ -5,7 +5,7 @@ import hashlib
 import logging
 import os
 import time
-from typing import Annotated
+from typing import Annotated, Literal
 from urllib.parse import urlparse
 
 import uvicorn
@@ -25,20 +25,42 @@ from . import auth, outline, slides
 from .oauth import GoogleOAuthProvider, SCOPE, ResourceTokenHandler
 
 async def generate_presentation(
-    topic: Annotated[str, Field(min_length=1, max_length=1000)],
+    topic: Annotated[str | None, Field(min_length=1, max_length=1000)] = None,
     slide_count: Annotated[int, Field(ge=1, le=6, strict=True)] = 3,
     audience: Annotated[str | None, Field(max_length=300)] = None,
     tone: Annotated[str | None, Field(max_length=200)] = None,
+    basis: Literal["topic", "content"] = "topic",
+    source_content: Annotated[str | None, Field(min_length=1, max_length=20000)] = None,
+    instructions: Annotated[str | None, Field(max_length=2000)] = None,
 ) -> dict[str, str]:
     """Create 1–6 slides in the authenticated user's Google Drive.
+
+    Use basis="topic" to develop a presentation from a required topic.
+    Use basis="content" to organize supplied material; source_content is required
+    and topic is optional context. Copy relevant notes or conversation content
+    into source_content: this tool cannot see the conversation or fetch URLs/files.
+    Content mode preserves supplied claims without adding facts unless instructions
+    explicitly request an expansion. Put purpose, emphasis, constraints, and any
+    requested expansion in instructions. Infer the basis from the user's intent;
+    ask only if ambiguity would materially change the result. Briefly state the
+    chosen approach in chat without requiring an extra confirmation.
 
     After a successful call, copy presentation_url from the result verbatim into
     the user's clickable link. Never invent a URL, reconstruct the opaque Google
     presentation ID, or add query parameters. Only report a created presentation
     when this tool actually returns a successful result.
     """
-    if not topic.strip():
-        raise ToolError("Topic must not be blank.")
+    if basis not in ("topic", "content"):
+        raise ToolError('Basis must be "topic" or "content".')
+    if basis == "topic":
+        if not topic or not topic.strip():
+            raise ToolError("Topic is required and must not be blank for topic basis.")
+        if source_content is not None:
+            raise ToolError('Use basis="content" when supplying source_content.')
+    elif not source_content or not source_content.strip():
+        raise ToolError("Source content is required and must not be blank for content basis.")
+    if topic is not None and not topic.strip():
+        raise ToolError("Topic must not be blank when supplied.")
     token = get_access_token()
     if not token or not token.subject or token.subject == "default":
         raise ToolError("Connect this connector to your Google account in Vibe first.")
@@ -50,8 +72,9 @@ async def generate_presentation(
         raise ToolError("Google credentials could not be loaded. Check the token database and reconnect Google.") from None
     try:
         content = await run_in_threadpool(
-            outline.generate_outline, topic.strip(), slide_count, audience, tone,
+            outline.generate_outline, topic.strip() if topic else None, slide_count, audience, tone,
             os.getenv("MISTRAL_MODEL", outline.DEFAULT_MODEL),
+            basis=basis, source_content=source_content, instructions=instructions,
         )
     except Exception:
         raise ToolError("Mistral could not generate a valid outline. Check the API key or try again.") from None

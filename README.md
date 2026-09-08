@@ -1,6 +1,6 @@
 # MCP Slides MVP
 
-One MCP tool creates a plain Google Slides deck from a topic, using Mistral for
+One MCP tool creates a plain Google Slides deck from a topic or supplied content, using Mistral for
 its outline and **each authenticated user's own Google account** for storage.
 
 MCP URL: https://mistral-slides-mcp-production.up.railway.app/mcp
@@ -101,7 +101,41 @@ though decks belong to the individual users.
 }
 ```
 
-`topic` is required (1–1,000 characters, not blank). `slide_count` defaults to 3
+`basis` is `"topic"` (the default, preserving existing calls) or `"content"`.
+Topic mode requires `topic` (1–1,000 characters, not blank) and develops a story
+from it. Supplying `source_content` in topic mode returns an error instead of
+silently ignoring the material.
+
+Content mode requires `source_content` (1–20,000 characters, not blank); `topic`
+is optional framing. The assistant must pass the actual text from the user's
+notes or relevant conversation: the tool cannot read chat history, fetch links,
+or extract files itself. For example:
+
+```json
+{
+  "basis": "content",
+  "source_content": "The pilot involved 10 sales reps. Feedback was positive, but time savings have not been measured. The proposed next phase costs €5,000.",
+  "slide_count": 3,
+  "audience": "Sales leaders",
+  "instructions": "Lead with the funding decision. Preserve the uncertainty about time savings."
+}
+```
+
+`instructions` is optional in both modes (up to 2,000 characters) and goes directly
+into the Mistral brief for purpose, emphasis, constraints, or explicit expansion
+requests. Content mode prompts Mistral to preserve the supplied meaning and
+qualifications, avoid adding facts, and omit gaps or identify missing information.
+An instruction such as "Add a general introduction explaining AI agents" permits
+that specific expansion. Source material is framed as data, not instructions.
+These are model instructions, not a factual verification guarantee; validation
+checks the output structure and lengths, not whether every claim is supported.
+
+The tool description guides Vibe to infer the basis from user intent, briefly
+state its approach, and clarify only material ambiguity. Actual conversational
+behavior depends on the host model. Refresh the connector's tool definitions
+after deploying this change. No additional authorization scopes are needed.
+
+`slide_count` defaults to 3
 and must be an integer from 1 to 6. Optional audience and tone are limited to 300
 and 200 characters. Each slide has a title and three bullets; there is no extra
 cover slide. The return value contains `presentation_id`, `presentation_url`, and

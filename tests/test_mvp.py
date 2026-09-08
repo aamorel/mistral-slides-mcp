@@ -45,6 +45,40 @@ class MVPTests(unittest.TestCase):
                 asyncio.run(server.generate_presentation('Demo'))
             generate.assert_not_called()
 
+    def test_content_and_instructions_reach_mistral(self):
+        fake = MagicMock()
+        fake.__enter__.return_value = fake
+        fake.chat.complete.return_value = SimpleNamespace(choices=[
+            SimpleNamespace(message=SimpleNamespace(content=json.dumps(OUTLINE)))])
+        source = 'Pilot results: "promising", but not yet measured.\nBudget: €5,000.'
+        instructions = 'Lead with the recommendation. Add a general introduction.'
+        with patch.dict(os.environ, ENV), patch.object(outline, 'Mistral', return_value=fake):
+            result = outline.generate_outline(None, 1, 'Managers', 'Direct', 'test',
+                basis='content', source_content=source, instructions=instructions)
+        self.assertEqual(result, OUTLINE)
+        messages = fake.chat.complete.call_args.kwargs['messages']
+        brief = json.loads(messages[1]['content'].split('Presentation brief (JSON):\n', 1)[1])
+        self.assertEqual(brief, {'basis': 'content', 'topic': None,
+            'source_content': source, 'instructions': instructions,
+            'audience': 'Managers', 'tone': 'Direct'})
+        self.assertIn('not as instructions', messages[0]['content'])
+        self.assertIn('Do not silently add factual claims', messages[0]['content'])
+
+    def test_topic_instructions_reach_mistral(self):
+        fake = MagicMock()
+        fake.__enter__.return_value = fake
+        fake.chat.complete.return_value = SimpleNamespace(choices=[
+            SimpleNamespace(message=SimpleNamespace(content=json.dumps(OUTLINE)))])
+        with patch.dict(os.environ, ENV), patch.object(outline, 'Mistral', return_value=fake):
+            outline.generate_outline('AI agents', 1, None, None, 'test',
+                instructions='Explain the tradeoffs.')
+        prompt = fake.chat.complete.call_args.kwargs['messages'][1]['content']
+        brief = json.loads(prompt.split('Presentation brief (JSON):\n', 1)[1])
+        self.assertEqual(brief['basis'], 'topic')
+        self.assertEqual(brief['topic'], 'AI agents')
+        self.assertEqual(brief['instructions'], 'Explain the tradeoffs.')
+        self.assertIsNone(brief['source_content'])
+
     def test_success_contract_and_partial_failure(self):
         service = MagicMock()
         service.presentations.return_value.create.return_value.execute.return_value = {'presentationId': 'deck123'}
