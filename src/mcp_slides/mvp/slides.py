@@ -88,6 +88,16 @@ def create_deck(creds: Credentials, outline: dict[str, Any]) -> dict[str, str]:
 
     if requests:
         try:
+            # A newly created presentation can already contain a starter slide.
+            # Read its actual IDs; remove those slides after adding our content,
+            # in the same batch, so only the requested slides remain.
+            initial = service.presentations().get(
+                presentationId=presentation_id, fields="slides(objectId)",
+            ).execute()
+            requests.extend(
+                {"deleteObject": {"objectId": slide["objectId"]}}
+                for slide in initial.get("slides", [])
+            )
             service.presentations().batchUpdate(
                 presentationId=presentation_id, body={"requests": requests},
             ).execute()

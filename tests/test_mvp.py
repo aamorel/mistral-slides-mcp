@@ -104,6 +104,7 @@ class MVPTests(unittest.TestCase):
     def test_success_contract_and_partial_failure(self):
         service = MagicMock()
         service.presentations.return_value.create.return_value.execute.return_value = {'presentationId': 'deck123'}
+        service.presentations.return_value.get.return_value.execute.return_value = {}
         with patch.object(slides, 'build', return_value=service):
             result = slides.create_deck(MagicMock(), OUTLINE)
             self.assertEqual(result, {'presentation_id': 'deck123', 'presentation_url': 'https://docs.google.com/presentation/d/deck123/edit', 'title': 'Demo'})
@@ -113,6 +114,31 @@ class MVPTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, 'deck123/edit') as caught:
                 slides.create_deck(MagicMock(), OUTLINE)
             self.assertNotIn('private upstream detail', str(caught.exception))
+
+    def test_generated_deck_has_exact_count_with_or_without_starter_slides(self):
+        for initial_ids in ([], ['google_starter'], ['google_starter', 'google_second']):
+            with self.subTest(initial_ids=initial_ids):
+                service = MagicMock()
+                service.presentations.return_value.create.return_value.execute.return_value = {'presentationId': 'deck123'}
+                service.presentations.return_value.get.return_value.execute.return_value = {
+                    'slides': [{'objectId': slide_id} for slide_id in initial_ids]}
+                content = {'title': 'Six slides', 'slides': OUTLINE['slides'] * 6}
+                with patch.object(slides, 'build', return_value=service):
+                    slides.create_deck(MagicMock(), content)
+                requests = service.presentations.return_value.batchUpdate.call_args.kwargs['body']['requests']
+                final_ids = list(initial_ids)
+                deleted = []
+                for request in requests:
+                    if 'createSlide' in request:
+                        final_ids.append(request['createSlide']['objectId'])
+                    elif 'deleteObject' in request:
+                        slide_id = request['deleteObject']['objectId']
+                        deleted.append(slide_id)
+                        final_ids.remove(slide_id)
+                self.assertEqual(final_ids, [f'mvp_slide_{i}' for i in range(1, 7)])
+                self.assertEqual(deleted, initial_ids)
+                self.assertEqual(sum('insertText' in r for r in requests), 12)
+                service.presentations.return_value.batchUpdate.assert_called_once()
 
     def test_old_database_and_refresh_persistence(self):
         with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {'TOKEN_DB_PATH': str(Path(temp) / 'tokens.db')}):
