@@ -1,38 +1,42 @@
-"""Deployed single-account presentation generator."""
+"""Presentation generator with per-user connector OAuth."""
 from __future__ import annotations
 
-import base64
-import hmac
 import logging
-import time
 import os
+import time
 from typing import Annotated
 from urllib.parse import urlparse
 
 import uvicorn
+from mcp.server.auth.middleware.auth_context import get_access_token
+from mcp.server.auth.middleware.client_auth import ClientAuthenticator
+from mcp.server.auth.routes import cors_middleware
+from mcp.server.auth.settings import AuthSettings, ClientRegistrationOptions, RevocationOptions
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
+from mcp.server.transport_security import RequestBodyLimitMiddleware
 from pydantic import Field
 from starlette.concurrency import run_in_threadpool
 from starlette.responses import JSONResponse
+from starlette.routing import Route
 
 from . import auth, outline, slides
+from .oauth import GoogleOAuthProvider, SCOPE, ResourceTokenHandler
 
-mcp = MCPServer("mcp-slides", instructions="Create plain Google Slides presentations in the owner's linked Google account.")
-
-
-@mcp.tool()
 async def generate_presentation(
     topic: Annotated[str, Field(min_length=1, max_length=1000)],
     slide_count: Annotated[int, Field(ge=1, le=6, strict=True)] = 3,
     audience: Annotated[str | None, Field(max_length=300)] = None,
     tone: Annotated[str | None, Field(max_length=200)] = None,
 ) -> dict[str, str]:
-    """Generate 1–6 title-and-bullet slides and return the Google Slides URL. All calls use the same linked Google account."""
+    """Generate 1–6 title-and-bullet slides and return the Google Slides URL. Creates slides in the authenticated user's Google Drive."""
     if not topic.strip():
         raise ToolError("Topic must not be blank.")
+    token = get_access_token()
+    if not token or not token.subject or token.subject == "default":
+        raise ToolError("Connect this connector to your Google account in Vibe first.")
     try:
-        creds = await run_in_threadpool(auth.load_credentials)
+        creds = await run_in_threadpool(auth.load_credentials, token.subject)
     except RuntimeError as exc:
         raise ToolError(str(exc)) from None
     except Exception:
@@ -52,109 +56,99 @@ async def generate_presentation(
         raise ToolError("Google Slides could not create the deck. Check Google access and API availability.") from None
 
 
-@mcp.custom_route("/health", methods=["GET"])
-async def health(request):
-    return JSONResponse({"ok": True, "server": "mcp-slides"})
-
-
-# Synchronous Google SDK work runs outside the event loop.
-@mcp.custom_route("/auth/google/start", methods=["GET"])
-async def start(request):
-    return await run_in_threadpool(auth.google_auth_start, request)
-
-
-@mcp.custom_route("/auth/google/callback", methods=["GET"])
-async def callback(request):
-    return await run_in_threadpool(auth.google_auth_callback, request)
-
-
-@mcp.custom_route("/auth/status", methods=["GET"])
-async def status(request):
-    return await run_in_threadpool(auth.google_auth_status, request)
-
-
 logger = logging.getLogger("uvicorn.error")
 
 
-def connector_token(header: str) -> str:
-    """Keep the investigation connector's bare-token and whitespace compatibility."""
-    value = header.strip()
-    if value.lower().startswith("bearer "):
-        return value.split(" ", 1)[1].strip()
-    return value
-
-
-class Authentication:
-    def __init__(self, app, token):
-        self.app, self.token = app, token
+class RequestLog:
+    """Fixed route labels and outcomes only; never log headers, bodies or query strings."""
+    def __init__(self, app):
+        self.app = app
 
     async def __call__(self, scope, receive, send):
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
-
         path = scope["path"]
-        admin = path in ("/auth/google/start", "/auth/status")
-        protected = admin or path.startswith("/mcp")
-        header = dict(scope.get("headers", [])).get(b"authorization", b"").decode("latin-1").strip()
-        scheme, _, value = header.partition(" ")
-        auth_format = (scheme.lower() if scheme.lower() in ("bearer", "basic")
-                       else "custom" if header else "none")
-        auth_result = "not_required"
-        if protected:
-            provided = connector_token(header)
-            if scheme.lower() == "basic":
-                provided = ""
-                if admin:
-                    try:
-                        user, _, password = base64.b64decode(value, validate=True).decode().partition(":")
-                        provided = password if user == "admin" else ""
-                    except (ValueError, UnicodeError):
-                        pass
-            auth_result = ("accepted" if hmac.compare_digest(provided.encode(), self.token.encode())
-                           else "missing" if not header else "invalid")
-
-        # Only fixed route labels and authentication outcomes: no query strings,
-        # header values, token fingerprints, request bodies or Google codes.
-        route = path if path in ("/mcp", "/mcp/", "/health", "/auth/google/start",
-                                 "/auth/google/callback", "/auth/status") else "other"
+        known = {"/mcp", "/mcp/", "/health", "/auth/google/start", "/auth/google/callback",
+                 "/auth/status", "/authorize", "/token", "/register", "/revoke",
+                 "/.well-known/oauth-authorization-server", "/.well-known/oauth-protected-resource",
+                 "/.well-known/oauth-protected-resource/mcp"}
+        route = path if path in known else "other"
         method = scope.get("method", "")
-        method = method if method in ("GET", "POST", "DELETE", "HEAD", "OPTIONS", "PUT", "PATCH") else "other"
+        method = method if method in {"GET", "POST", "DELETE", "HEAD", "OPTIONS", "PUT", "PATCH"} else "other"
+        present = bool(dict(scope.get("headers", [])).get(b"authorization"))
         started = time.monotonic()
         if path != "/health":
-            logger.info("http_request method=%s route=%s auth=%s format=%s",
-                        method, route, auth_result, auth_format)
+            logger.info("http_request method=%s route=%s authorization_present=%s", method, route, present)
 
         async def logged_send(message):
             if message["type"] == "http.response.start" and path != "/health":
+                user = scope.get("user")
+                result = ("accepted" if getattr(user, "is_authenticated", False) else
+                          "invalid" if present else "missing") if path.startswith('/mcp') else "not_required"
                 logger.info("http_response method=%s route=%s status=%s auth=%s elapsed_ms=%d",
-                            method, route, message["status"], auth_result,
-                            int((time.monotonic() - started) * 1000))
+                            method, route, message["status"], result, int((time.monotonic()-started)*1000))
             await send(message)
-
-        if auth_result in ("missing", "invalid"):
-            challenge = 'Basic realm="Google linking", charset="UTF-8"' if admin else "Bearer"
-            await JSONResponse({"error": "Authentication required"}, status_code=401,
-                               headers={"WWW-Authenticate": challenge})(scope, receive, logged_send)
-            return
         await self.app(scope, receive, logged_send)
 
 
 def create_app():
-    required = ("CONNECTOR_BEARER_TOKEN", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "PUBLIC_BASE_URL", "MISTRAL_API_KEY")
+    required = ("GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "PUBLIC_BASE_URL", "MISTRAL_API_KEY")
     missing = [name for name in required if not os.getenv(name, "").strip()]
     if missing:
         raise RuntimeError("Missing configuration: " + ", ".join(missing))
-    base = urlparse(os.environ["PUBLIC_BASE_URL"])
-    if base.scheme != "https" and not (base.scheme == "http" and base.hostname in ("localhost", "127.0.0.1")):
-        raise RuntimeError("PUBLIC_BASE_URL must use HTTPS (HTTP allowed only on localhost).")
-    token = os.environ["CONNECTOR_BEARER_TOKEN"].strip()
-    if token.lower().startswith("bearer "):
-        token = token[7:].strip()
-    if not token:
-        raise RuntimeError("CONNECTOR_BEARER_TOKEN must not be empty")
-    return Authentication(mcp.streamable_http_app(streamable_http_path="/mcp", json_response=True,
-                          stateless_http=True, host=os.getenv("HOST", "0.0.0.0")), token)
+    base_url = os.environ["PUBLIC_BASE_URL"].rstrip('/')
+    base = urlparse(base_url)
+    if (base.query or base.fragment or base.username or base.password or base.path or not base.hostname or
+        not (base.scheme == "https" or (base.scheme == "http" and base.hostname in ("localhost", "127.0.0.1", "::1")))):
+        raise RuntimeError("PUBLIC_BASE_URL must be an HTTPS origin (HTTP allowed only on localhost).")
+    provider = GoogleOAuthProvider(base_url)
+    mcp = MCPServer(
+        "mcp-slides", instructions="Create Google Slides presentations in the authenticated user's own Google Drive.",
+        auth_server_provider=provider,
+        auth=AuthSettings(issuer_url=base_url, resource_server_url=provider.resource,
+            required_scopes=[SCOPE], validate_token_resource=True,
+            client_registration_options=ClientRegistrationOptions(enabled=True, valid_scopes=[SCOPE], default_scopes=[SCOPE]),
+            revocation_options=RevocationOptions(enabled=True)),
+    )
+    mcp.tool()(generate_presentation)
+
+    @mcp.custom_route("/health", methods=["GET"])
+    async def health(request):
+        return JSONResponse({"ok": True, "server": "mcp-slides", "auth": "oauth"})
+
+    @mcp.custom_route("/auth/google/start", methods=["GET", "POST"])
+    async def start(request):
+        if request.method == "POST":
+            return await provider.consent_submit(request)
+        return await run_in_threadpool(provider.consent_page, request)
+
+    @mcp.custom_route("/auth/google/callback", methods=["GET"])
+    async def callback(request):
+        return await run_in_threadpool(provider.google_callback, request)
+
+    @mcp.custom_route("/auth/status", methods=["GET"])
+    async def status(request):
+        token = get_access_token()
+        if not token:
+            return JSONResponse({"linked": False, "action": "Connect this connector in Vibe to authorize Google."}, status_code=401)
+        return JSONResponse({"linked": True}, headers={"Cache-Control": "no-store"})
+
+    @mcp.custom_route("/.well-known/oauth-protected-resource", methods=["GET"])
+    async def resource_metadata(request):
+        return JSONResponse({"resource": provider.resource, "authorization_servers": [base_url],
+                             "scopes_supported": [SCOPE], "bearer_methods_supported": ["header"]})
+
+    app = mcp.streamable_http_app(streamable_http_path="/mcp", json_response=True,
+                                   stateless_http=True, host=os.getenv("HOST", "0.0.0.0"))
+    # This SDK version validates PKCE/client/redirect/scope but does not check
+    # the token request's resource parameter. Reject resource substitution.
+    handler = ResourceTokenHandler(provider, ClientAuthenticator(provider))
+    for index, route in enumerate(app.routes):
+        if getattr(route, 'path', None) == '/token':
+            app.routes[index] = Route('/token', endpoint=RequestBodyLimitMiddleware(
+                cors_middleware(handler.handle, ['POST', 'OPTIONS']), 65536), methods=['POST', 'OPTIONS'])
+    return RequestLog(app)
 
 
 def main():

@@ -18,62 +18,6 @@ ENV = {"CONNECTOR_BEARER_TOKEN": "test-secret", "GOOGLE_CLIENT_ID": "test-client
 
 
 class MVPTests(unittest.TestCase):
-    def test_auth_gate_and_health(self):
-        with patch.dict(os.environ, ENV), TestClient(server.create_app()) as client:
-            self.assertEqual(client.get('/health').status_code, 200)
-            for path in ('/mcp', '/auth/status', '/auth/google/start'):
-                self.assertEqual(client.get(path).status_code, 401)
-            self.assertEqual(client.get('/auth/google/callback?state=invalid').status_code, 400)
-            with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {"TOKEN_DB_PATH": str(Path(temp) / 'tokens.db')}):
-                result = client.get('/auth/status', auth=('admin', 'test-secret'))
-                self.assertEqual(result.json()['linked'], False)
-                result = client.get('/auth/google/start', auth=('admin', 'test-secret'), follow_redirects=False)
-                self.assertEqual(result.status_code, 307)
-                self.assertIn('code_challenge=', result.headers['location'])
-                self.assertIn('HttpOnly', result.headers['set-cookie'])
-
-    def test_connector_header_compatibility_and_safe_logs(self):
-        from starlette.responses import JSONResponse
-        from starlette.applications import Starlette
-        from starlette.routing import Route
-
-        async def endpoint(request):
-            return JSONResponse({"ok": True})
-
-        app = Starlette(routes=[Route('/{path:path}', endpoint, methods=['GET', 'POST'])])
-        with TestClient(server.Authentication(app, 'test-secret')) as client:
-            with self.assertLogs('uvicorn.error', level='INFO') as logs:
-                for header in ('Bearer test-secret', 'test-secret', '  bearer   test-secret  '):
-                    self.assertEqual(client.post('/mcp', headers={'Authorization': header}).status_code, 200)
-                self.assertEqual(client.post('/mcp').status_code, 401)
-                self.assertEqual(client.post('/mcp', headers={'Authorization': 'Bearer wrong-private-token'}).status_code, 401)
-                client.get('/auth/google/callback?code=private-google-code&state=private-state')
-            output = '\n'.join(logs.output)
-            for secret in ('test-secret', 'wrong-private-token', 'private-google-code', 'private-state'):
-                self.assertNotIn(secret, output)
-            for outcome in ('auth=accepted', 'auth=missing', 'auth=invalid', 'status=200', 'status=401'):
-                self.assertIn(outcome, output)
-
-    def test_callback_state_pkce_and_replay(self):
-        with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {**ENV, "TOKEN_DB_PATH": str(Path(temp) / 'tokens.db')}), TestClient(server.create_app(), base_url='https://example.com') as client:
-            client.get('/auth/google/start', auth=('admin', 'test-secret'), follow_redirects=False)
-            state = client.cookies.get('google_oauth_state')
-            db = auth.connect()
-            verifier = db.execute('select code_verifier from oauth_states where state = ?', (state,)).fetchone()[0]
-            db.close()
-            flow = MagicMock()
-            flow.credentials.to_json.return_value = '{"refresh_token": "fake"}'
-            with patch.object(auth, 'create_flow', return_value=flow):
-                response = client.get(f'/auth/google/callback?state={state}&code=fake')
-                self.assertEqual(response.status_code, 200)
-                self.assertEqual(flow.code_verifier, verifier)
-                self.assertTrue(flow.fetch_token.call_args.kwargs['authorization_response'].startswith('https://example.com/'))
-                self.assertEqual(client.get(f'/auth/google/callback?state={state}&code=fake').status_code, 400)
-                flow.fetch_token.assert_called_once()
-            db = auth.connect()
-            self.assertEqual(db.execute("select connection_id from google_tokens").fetchone()[0], 'default')
-            db.close()
-
     def test_missing_config_fails_closed(self):
         with patch.dict(os.environ, {}, clear=True):
             with self.assertRaises(RuntimeError):
@@ -96,7 +40,7 @@ class MVPTests(unittest.TestCase):
         self.assertEqual(fake.chat.complete.call_count, 2)
 
     def test_missing_google_does_not_call_mistral(self):
-        with patch.object(auth, 'load_credentials', side_effect=RuntimeError('Google is not linked')), patch.object(outline, 'generate_outline') as generate:
+        with patch.object(server, 'get_access_token', return_value=SimpleNamespace(subject='user-a')), patch.object(auth, 'load_credentials', side_effect=RuntimeError('Google is not linked')), patch.object(outline, 'generate_outline') as generate:
             with self.assertRaisesRegex(ToolError, 'not linked'):
                 asyncio.run(server.generate_presentation('Demo'))
             generate.assert_not_called()
@@ -143,13 +87,13 @@ class MVPTests(unittest.TestCase):
     def test_old_database_and_refresh_persistence(self):
         with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {'TOKEN_DB_PATH': str(Path(temp) / 'tokens.db')}):
             db = auth.connect()
-            db.execute("insert into google_tokens values ('default', '{}', 1)")
+            db.execute("insert into google_tokens values ('user-a', '{}', 1)")
             db.commit()
             db.close()
             creds = MagicMock(valid=False)
             creds.to_json.return_value = '{"refreshed": true}'
             with patch.object(auth.Credentials, 'from_authorized_user_info', return_value=creds):
-                self.assertIs(auth.load_credentials(), creds)
+                self.assertIs(auth.load_credentials('user-a'), creds)
             creds.refresh.assert_called_once()
             db = auth.connect()
             self.assertEqual(json.loads(db.execute('select credentials_json from google_tokens').fetchone()[0]), {'refreshed': True})

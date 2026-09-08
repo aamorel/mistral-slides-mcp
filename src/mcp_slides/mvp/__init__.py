@@ -1,1 +1,1 @@
-"""Single-account Google Slides MVP, independent of investigation code."""
+"""Google Slides MVP with per-user connector OAuth."""

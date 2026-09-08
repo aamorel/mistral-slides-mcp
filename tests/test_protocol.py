@@ -2,6 +2,9 @@
 import asyncio
 import os
 import socket
+import tempfile
+from pathlib import Path
+from contextlib import closing
 import unittest
 from unittest.mock import patch
 
@@ -9,7 +12,8 @@ import httpx2
 import uvicorn
 from mcp import Client
 from mcp.client.streamable_http import streamable_http_client
-from mcp_slides.mvp import server
+from mcp_slides.mvp import server, auth
+from mcp_slides.mvp.oauth import GoogleOAuthProvider, SCOPE
 
 ENV = {'CONNECTOR_BEARER_TOKEN': 'protocol-secret', 'GOOGLE_CLIENT_ID': 'fake',
        'GOOGLE_CLIENT_SECRET': 'fake', 'PUBLIC_BASE_URL': 'http://127.0.0.1',
@@ -19,7 +23,14 @@ RESULT = {'presentation_id': 'test123', 'presentation_url': 'https://docs.google
 
 class ProtocolTests(unittest.IsolatedAsyncioTestCase):
     async def test_discovery_validation_and_generation(self):
-        with patch.dict(os.environ, ENV), patch.object(server.auth, 'load_credentials', return_value=object()), patch.object(server.outline, 'generate_outline', return_value={}) as generate, patch.object(server.slides, 'create_deck', return_value=RESULT):
+        with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {**ENV, 'TOKEN_DB_PATH': str(Path(temp) / 'tokens.db')}), patch.object(server.auth, 'load_credentials', side_effect=lambda subject: subject) as credentials, patch.object(server.outline, 'generate_outline', return_value={}) as generate, patch.object(server.slides, 'create_deck', return_value=RESULT) as render:
+            provider = GoogleOAuthProvider(ENV['PUBLIC_BASE_URL'])
+            with closing(auth.connect()) as db:
+                for subject in ('alice', 'bob'):
+                    db.execute('insert into google_tokens values (?, ?, ?)', (subject, '{}', 1))
+                alice = provider.issue_tokens(db, 'shared-vibe-client', 'alice', [SCOPE])
+                bob = provider.issue_tokens(db, 'shared-vibe-client', 'bob', [SCOPE])
+                db.commit()
             sock = socket.socket()
             sock.bind(('127.0.0.1', 0))
             port = sock.getsockname()[1]
@@ -31,7 +42,7 @@ class ProtocolTests(unittest.IsolatedAsyncioTestCase):
                         break
                     await asyncio.sleep(.02)
                 self.assertTrue(http_server.started)
-                async with httpx2.AsyncClient(headers={'Authorization': 'Bearer protocol-secret'}) as http:
+                async with httpx2.AsyncClient(headers={'Authorization': 'Bearer ' + alice.access_token}) as http:
                     async with Client(streamable_http_client(f'http://127.0.0.1:{port}/mcp', http_client=http)) as client:
                         tools = await client.list_tools()
                         self.assertEqual([t.name for t in tools.tools], ['generate_presentation'])
@@ -42,6 +53,14 @@ class ProtocolTests(unittest.IsolatedAsyncioTestCase):
                         result = await client.call_tool('generate_presentation', {'topic': 'Demo'})
                         self.assertFalse(result.is_error)
                         self.assertEqual(result.structured_content, RESULT)
+                        credentials.assert_called_with('alice')
+                        self.assertEqual(render.call_args.args[0], 'alice')
+                async with httpx2.AsyncClient(headers={'Authorization': 'Bearer ' + bob.access_token}) as http:
+                    async with Client(streamable_http_client(f'http://127.0.0.1:{port}/mcp', http_client=http)) as client:
+                        result = await client.call_tool('generate_presentation', {'topic': 'Bob deck'})
+                        self.assertFalse(result.is_error)
+                        credentials.assert_called_with('bob')
+                        self.assertEqual(render.call_args.args[0], 'bob')
             finally:
                 http_server.should_exit = True
                 await task
