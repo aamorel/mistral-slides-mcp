@@ -9,6 +9,7 @@ dependencies = [
     "google-auth-oauthlib>=1.4.1",
     "mcp[cli]",
     "mistralai>=2.9.4",
+    "pillow>=11",
 ]
 
 [project.scripts]

@@ -5,7 +5,7 @@ import hashlib
 import logging
 import os
 import time
-from typing import Annotated, Literal
+from typing import Annotated, Literal, Any
 from urllib.parse import urlparse
 
 import uvicorn
@@ -19,10 +19,10 @@ from mcp.server.transport_security import RequestBodyLimitMiddleware
 from mcp.types import ToolAnnotations
 from pydantic import Field
 from starlette.concurrency import run_in_threadpool
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
-from . import auth, outline, slides, editing
+from . import auth, outline, slides, editing, preferences, backgrounds
 from .oauth import GoogleOAuthProvider, SCOPE, ResourceTokenHandler
 
 async def generate_presentation(
@@ -33,15 +33,15 @@ async def generate_presentation(
     basis: Literal["topic", "content"] = "topic",
     source_content: Annotated[str | None, Field(min_length=1, max_length=20000)] = None,
     instructions: Annotated[str | None, Field(max_length=2000)] = None,
-    style: Literal["minimal", "dark", "warm"] = "minimal",
-) -> dict[str, str]:
-    """Create 1–6 slides in the authenticated user's Google Drive.
+    style: Literal["default", "minimal", "dark", "warm"] = "default",
+) -> dict[str, Any]:
+    """Create 1–6 content slides PLUS a new opening title slide in the authenticated user's Google Drive.
 
     Act directly when the user asks to create/make/generate a presentation and
     supplies a topic or source content. A broad topic such as 'phones' is enough:
     generate a general overview. Example: 'Create a presentation about phones'
     means call generate_presentation(topic="phones") now, using the defaults
-    (3 slides, topic basis, Minimal style, general professional audience).
+    (3 content slides plus a cover, topic basis, saved default style).
     Do not ask the user to repeat the topic, choose create versus edit, specify
     optional arguments, approve an outline, or confirm creation. Draft an outline
     in chat only when the user asks to plan or explore before creating. Ask one
@@ -61,10 +61,18 @@ async def generate_presentation(
     switching to topic mode. Briefly state the chosen approach and call the tool
     in the same turn, without waiting for confirmation.
 
-    Style presets: minimal (default; white, dark text, blue accent), dark (dark
-    background, light text, teal accent), warm (cream, brown accent). Honor an
-    explicit style request; otherwise use minimal without asking. These are
-    built-in presets, not custom branding, templates, or imported Google themes.
+    Every generation creates a new title slide with a Mistral-generated background
+    image, in addition to slide_count content slides. Report total_slide_count;
+    do not count the cover as a content slide. Default produces four slides total.
+    Image generation is automatic, never ask users to opt in. It can take longer
+    than text generation; never claim an image or deck exists before success.
+    The cover title is editable; the image cannot be revised through edit_slide.
+
+    style="default" automatically uses this connection's saved colors/font, or
+    Minimal if none are saved. Do not call get_default_style before each generation.
+    Explicit minimal/dark/warm presets override it for this deck only. Use
+    set_default_style only when the user explicitly asks to save future defaults,
+    not when describing one deck. No arbitrary layouts, templates or theme imports.
 
     After a successful call, copy presentation_url from the result verbatim into
     the user's clickable link. Never invent a URL, reconstruct the opaque Google
@@ -78,13 +86,14 @@ async def generate_presentation(
     user requests a revision. Do not add the invitation to the slide content.
     Mention the applied style from the result beside the link. On the first
     successful generation in a conversation, briefly mention the other presets
-    as options for FUTURE decks. Avoid repeating the list when already explained.
+    as options for FUTURE decks, or mention that colors/font can be saved as a
+    personal default. Keep discovery to one short sentence and avoid repeating it.
     Changing an existing deck's style is unsupported; do not offer it as an edit
     or create another deck unless the user requests one. This discovery message
     belongs in chat, not on the slides, and must not require a response.
     """
-    if style not in slides.STYLE_PRESETS:
-        raise ToolError("Unknown style. Choose minimal, dark, or warm.")
+    if style not in ("default", *slides.STYLE_PRESETS):
+        raise ToolError("Unknown style. Choose default, minimal, dark, or warm.")
     if basis not in ("topic", "content"):
         raise ToolError('Basis must be "topic" or "content".')
     if basis == "topic":
@@ -97,6 +106,14 @@ async def generate_presentation(
     if topic is not None and not topic.strip():
         raise ToolError("Topic must not be blank when supplied.")
     creds = await connected_credentials()
+    subject = connection_subject()
+    try:
+        saved = await run_in_threadpool(preferences.get_style, subject) if style == "default" else None
+        applied_style = "custom" if saved and saved["saved"] else ("minimal" if style == "default" else style)
+        palette = (preferences.StyleSettings.model_validate(saved["settings"]).palette()
+                   if applied_style == "custom" else dict(slides.STYLE_PRESETS[applied_style]))
+    except Exception:
+        raise ToolError("Could not load the saved style. Try again before creating the deck.") from None
     try:
         content = await run_in_threadpool(
             outline.generate_outline, topic.strip() if topic else None, slide_count, audience, tone,
@@ -106,7 +123,13 @@ async def generate_presentation(
     except Exception:
         raise ToolError("Mistral could not generate a valid outline. Check the API key or try again.") from None
     try:
-        result = await run_in_threadpool(slides.create_deck, creds, content, style=style)
+        data = await run_in_threadpool(backgrounds.generate_image, content["title"], palette)
+        image_token, image_url = await run_in_threadpool(backgrounds.publish_image, subject, data)
+    except Exception:
+        raise ToolError("The title background could not be generated or prepared. No deck was created. Check Mistral image-generation access and try again.") from None
+    try:
+        result = await run_in_threadpool(slides.create_deck, creds, content,
+            style=applied_style, palette=palette, cover_image_url=image_url)
         # Correlate the exact returned URL with a reported link without exposing
         # private deck IDs, titles, URLs or Google credentials in Railway logs.
         logger.info("presentation_result url_sha256=%s",
@@ -116,28 +139,83 @@ async def generate_presentation(
         raise ToolError(str(exc)) from None
     except Exception:
         raise ToolError("Google Slides could not create the deck. Check Google access and API availability.") from None
+    finally:
+        try:
+            await run_in_threadpool(backgrounds.remove_image, image_token)
+        except Exception:
+            logger.warning("temporary_image_cleanup_failed")
 
 
 logger = logging.getLogger("uvicorn.error")
 
 
-async def connected_credentials():
+def connection_subject():
     token = get_access_token()
     if not token or not token.subject or token.subject == "default":
         raise ToolError("Connect this connector to your Google account in Vibe first.")
+    return token.subject
+
+
+async def connected_credentials():
+    subject = connection_subject()
     try:
-        return await run_in_threadpool(auth.load_credentials, token.subject)
+        return await run_in_threadpool(auth.load_credentials, subject)
     except RuntimeError as exc:
         raise ToolError(str(exc)) from None
     except Exception:
         raise ToolError("Google credentials could not be loaded. Check the token database and reconnect Google.") from None
 
 
+async def get_default_style() -> dict[str, Any]:
+    """Show saved colors/font and a Markdown summary for this connection, or Minimal.
+
+    This is not a filesystem file. Preferences apply to future decks only and do
+    not survive reconnecting as a new connection. No need to read before generation.
+    """
+    await connected_credentials()
+    try:
+        return await run_in_threadpool(preferences.get_style, connection_subject())
+    except Exception:
+        raise ToolError("Could not read the saved style. Try again later.") from None
+
+
+async def set_default_style(settings: preferences.StyleSettings) -> dict[str, Any]:
+    """Save a complete default style for FUTURE decks on this connection.
+
+    Call only for an explicit request to save defaults. Supported: #RRGGBB
+    background/title/body colors and Arial, Verdana, Georgia, Trebuchet MS fonts.
+    Use get_default_style before a partial change, then send the complete merged
+    settings so other choices are preserved. Colors require readable contrast.
+    Explain validation errors; do not silently change requested colors. No arbitrary
+    Markdown instructions, layouts, images, or restyling existing decks. Summarize
+    the saved colors/font and note connection scope after success.
+    """
+    await connected_credentials()
+    try:
+        return await run_in_threadpool(preferences.set_style, connection_subject(), settings)
+    except RuntimeError as exc:
+        raise ToolError(str(exc)) from None
+    except Exception:
+        raise ToolError("Could not confirm the saved style. Read the current settings before retrying.") from None
+
+
+async def reset_default_style() -> dict[str, Any]:
+    """Remove saved defaults only when requested; future decks fall back to Minimal.
+
+    Existing presentations are unchanged. This acts only on the current connection.
+    """
+    await connected_credentials()
+    try:
+        return await run_in_threadpool(preferences.reset_style, connection_subject())
+    except Exception:
+        raise ToolError("Could not reset the saved style. Read the current settings before retrying.") from None
+
+
 PresentationId = Annotated[str, Field(min_length=1, max_length=200, pattern=r"^[A-Za-z0-9_-]+$")]
 SlideId = Annotated[str, Field(min_length=1, max_length=200, pattern=r"^[A-Za-z0-9_][A-Za-z0-9_:-]*$")]
 
 
-async def get_presentation(presentation_id: PresentationId) -> dict:
+async def get_presentation(presentation_id: PresentationId) -> dict[str, Any]:
     """Read the current deck before editing; returns slide/element IDs and revision_id.
 
     Use an ID from a successful tool result or user-supplied Google Slides URL.
@@ -165,7 +243,7 @@ async def edit_slide(
     expected_revision_id: Annotated[str, Field(min_length=1, max_length=500)],
     instructions: Annotated[str, Field(min_length=1, max_length=2000)],
     source_content: Annotated[str | None, Field(min_length=1, max_length=20000)] = None,
-) -> dict:
+) -> dict[str, Any]:
     """Revise supported text on ONE existing slide, updating the same deck URL.
 
     First call get_presentation; use its slide_id and revision_id verbatim. Only
@@ -243,7 +321,7 @@ def create_app():
     mcp = MCPServer(
         "mcp-slides", instructions=("Create Google Slides presentations in the authenticated user's own Google Drive. "
                       "For a creation request with a topic or source content, call generate_presentation directly. "
-                      "A broad topic such as phones is sufficient. Use 3 slides and Minimal style when unspecified. "
+                      "A broad topic such as phones is sufficient. Use 3 content slides plus an image cover and the saved default style when unspecified. "
                       "Do not present a create/edit menu, ask for optional details, repeat a supplied topic, "
                       "or require an outline approval. Planning is only for users who request planning. "
                       "Clarify missing required topic/source material or unsupported requirements only. "
@@ -253,9 +331,9 @@ def create_app():
                       "to request wording revisions, with examples suited to the actual deck and user's language. "
                       "Do not ask for mandatory confirmation or start editing without a user request. "
                       "The invitation belongs in chat, not in the presentation. "
-                      "Use Minimal styling by default without asking; honor explicit Dark or Warm requests. "
+                      "Use saved defaults automatically, falling back to Minimal; explicit presets override for one deck. "
                       "Mention the applied style and, once per conversation after successful generation, "
-                      "briefly introduce the other presets for future decks. Restyling existing decks is unsupported. "
+                      "briefly mention presets or saving preferred colors/fonts for future decks. Restyling existing decks is unsupported. "
                       "Copy presentation_url verbatim from a successful tool result. "
                       "Never fabricate or rewrite presentation IDs or URLs."),
         auth_server_provider=provider,
@@ -269,6 +347,20 @@ def create_app():
                                        idempotent_hint=True, open_world_hint=True))(get_presentation)
     mcp.tool(annotations=ToolAnnotations(read_only_hint=False, destructive_hint=True,
                                        idempotent_hint=False, open_world_hint=True))(edit_slide)
+
+    for function in (get_default_style,):
+        mcp.tool(annotations=ToolAnnotations(read_only_hint=True, destructive_hint=False))(function)
+    for function in (set_default_style, reset_default_style):
+        mcp.tool(annotations=ToolAnnotations(read_only_hint=False, destructive_hint=True, idempotent_hint=True))(function)
+
+    @mcp.custom_route("/assets/{image_token}.png", methods=["GET"])
+    async def temporary_image(request):
+        import re
+        token = request.path_params["image_token"]
+        if not re.fullmatch(r"[A-Za-z0-9_-]{43}", token):
+            return Response(status_code=404)
+        data = await run_in_threadpool(backgrounds.read_image, token)
+        return Response(data, media_type="image/png", headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"}) if data else Response(status_code=404)
 
     @mcp.custom_route("/health", methods=["GET"])
     async def health(request):

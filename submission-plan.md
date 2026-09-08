@@ -76,9 +76,14 @@ Google and Mistral; these checks exercise the real providers and conversation.
 
 - [ ] Generate from a topic and open the exact returned link in the correct Drive.
 - [ ] Ask “Create a presentation about phones” with no other details. Confirm
-  immediate generation of three Minimal slides without a create/edit menu or
+  immediate generation of three content slides plus one image cover using saved defaults without a create/edit menu or
   questions about optional inputs. Separately verify an explicit planning request
   stays in conversation until creation is requested.
+- [ ] Save a custom style, generate without specifying a preset, and verify it
+  is applied. Verify explicit presets override it only for one deck, reset works,
+  and a second connection cannot read or change the first connection’s preference.
+- [ ] Verify the automatic image cover, editable title, extra-slide count, and
+  temporary image fetch from the deployed server.
 - [ ] Generate from supplied content and check that facts and uncertainty are preserved.
 - [ ] Confirm the post-generation chat invitation offers relevant wording edits.
 - [ ] Generate with Minimal (default), Dark, and Warm. Check visual fit, contrast,

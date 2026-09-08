@@ -56,16 +56,36 @@ def insert_text_request(object_id: str, text: str) -> dict[str, Any]:
     }
 
 
-def create_deck(creds: Credentials, outline: dict[str, Any], style: str = "minimal") -> dict[str, str]:
-    if style not in STYLE_PRESETS:
+def create_deck(creds: Credentials, outline: dict[str, Any], style: str = "minimal", *,
+                palette: dict | None = None, cover_image_url: str) -> dict[str, Any]:
+    if style not in (*STYLE_PRESETS, "custom"):
         raise ValueError("Unknown style. Choose minimal, dark, or warm.")
-    palette = STYLE_PRESETS[style]
+    if style == "custom" and not palette:
+        raise ValueError("Custom styling requires validated settings.")
+    palette = palette or STYLE_PRESETS[style]
     service = build("slides", "v1", credentials=creds, cache_discovery=False)
     title = outline["title"]
     presentation = service.presentations().create(body={"title": title}).execute()
     presentation_id = presentation["presentationId"]
 
-    requests: list[dict[str, Any]] = []
+    requests: list[dict[str, Any]] = [
+        {"createSlide": {"objectId": "mvp_slide_0", "slideLayoutReference": {"predefinedLayout": "BLANK"}}},
+        {"createImage": {"objectId": "mvp_cover_image", "url": cover_image_url,
+            "elementProperties": {"pageObjectId": "mvp_slide_0",
+                "size": {"width": {"magnitude": 720, "unit": "PT"}, "height": {"magnitude": 405, "unit": "PT"}},
+                "transform": {"scaleX": 1, "scaleY": 1, "translateX": 0, "translateY": 0, "unit": "PT"}}}},
+        # Solid title band guarantees contrast regardless of generated image colors.
+        create_text_box_request("mvp_cover_band", "mvp_slide_0", 0, 224, 720, 181),
+        {"updateShapeProperties": {"objectId": "mvp_cover_band", "shapeProperties": {
+            "shapeBackgroundFill": {"solidFill": {"color": {"rgbColor": rgb(palette["background"])}, "alpha": 1}},
+            "outline": {"propertyState": "NOT_RENDERED"}}, "fields": "shapeBackgroundFill,outline"}},
+        create_text_box_request("mvp_title_0", "mvp_slide_0", 40, 244, 640, 132),
+        insert_text_request("mvp_title_0", title),
+        {"updateTextStyle": {"objectId": "mvp_title_0", "textRange": {"type": "ALL"},
+            "style": {"fontFamily": palette.get("font_family", "Arial"), "fontSize": {"magnitude": 30, "unit": "PT"},
+                "bold": True, "foregroundColor": {"opaqueColor": {"rgbColor": rgb(palette["title"])}}},
+            "fields": "fontFamily,fontSize,bold,foregroundColor"}},
+    ]
     for index, slide in enumerate(outline["slides"], start=1):
         slide_id = f"mvp_slide_{index}"
         title_box_id = f"mvp_title_{index}"
@@ -105,7 +125,7 @@ def create_deck(creds: Credentials, outline: dict[str, Any], style: str = "minim
             requests.append({"updateTextStyle": {
                 "objectId": f"mvp_{kind}_{index}", "textRange": {"type": "ALL"},
                 "style": {"fontSize": {"magnitude": size, "unit": "PT"},
-                          "fontFamily": "Arial", "bold": kind == "title",
+                          "fontFamily": palette.get("font_family", "Arial"), "bold": kind == "title",
                           "foregroundColor": {"opaqueColor": {"rgbColor": rgb(palette[kind])}}},
                 "fields": "fontSize,fontFamily,bold,foregroundColor",
             }})
@@ -142,4 +162,7 @@ def create_deck(creds: Credentials, outline: dict[str, Any], style: str = "minim
         "presentation_url": f"https://docs.google.com/presentation/d/{presentation_id}/edit",
         "title": title,
         "style": style,
+        "content_slide_count": len(outline["slides"]),
+        "total_slide_count": len(outline["slides"]) + 1,
+        "cover_image": "generated",
     }

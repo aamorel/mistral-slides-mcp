@@ -29,6 +29,9 @@ def connect() -> sqlite3.Connection:
         primary key (kind, key)
     )""")
     db.execute("create index if not exists connector_oauth_subject on connector_oauth(subject)")
+    db.execute('create table if not exists style_preferences (subject text primary key, settings_json text not null)')
+    db.execute('create table if not exists temporary_images (token_hash text primary key, subject text not null, data blob not null, expires_at integer not null)')
+    db.execute("delete from temporary_images where expires_at<=?", (int(time.time()),))
     db.commit()
     return db
 
@@ -50,6 +53,8 @@ def save_credentials(db, subject: str, creds: Credentials) -> None:
 
 
 def revoke_subject(db, subject: str) -> None:
+    db.execute('delete from style_preferences where subject=?', (subject,))
+    db.execute('delete from temporary_images where subject=?', (subject,))
     db.execute("delete from connector_oauth where subject = ?", (subject,))
     db.execute("delete from google_tokens where connection_id = ?", (subject,))
 

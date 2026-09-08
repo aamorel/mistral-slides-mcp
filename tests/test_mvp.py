@@ -84,13 +84,13 @@ class MVPTests(unittest.TestCase):
         service.presentations.return_value.create.return_value.execute.return_value = {'presentationId': 'deck123'}
         service.presentations.return_value.get.return_value.execute.return_value = {}
         with patch.object(slides, 'build', return_value=service):
-            result = slides.create_deck(MagicMock(), OUTLINE)
-            self.assertEqual(result, {'presentation_id': 'deck123', 'presentation_url': 'https://docs.google.com/presentation/d/deck123/edit', 'title': 'Demo', 'style': 'minimal'})
+            result = slides.create_deck(MagicMock(), OUTLINE, cover_image_url="https://example.com/cover.png")
+            self.assertEqual(result, {'presentation_id': 'deck123', 'presentation_url': 'https://docs.google.com/presentation/d/deck123/edit', 'title': 'Demo', 'style': 'minimal', 'content_slide_count': 1, 'total_slide_count': 2, 'cover_image': 'generated'})
             requests = service.presentations.return_value.batchUpdate.call_args.kwargs['body']['requests']
-            self.assertEqual(sum('createSlide' in r for r in requests), 1)
+            self.assertEqual(sum('createSlide' in r for r in requests), 2)
             service.presentations.return_value.batchUpdate.return_value.execute.side_effect = Exception('private upstream detail')
             with self.assertRaisesRegex(RuntimeError, 'deck123/edit') as caught:
-                slides.create_deck(MagicMock(), OUTLINE)
+                slides.create_deck(MagicMock(), OUTLINE, cover_image_url="https://example.com/cover.png")
             self.assertNotIn('private upstream detail', str(caught.exception))
 
     def test_generated_deck_has_exact_count_with_or_without_starter_slides(self):
@@ -102,7 +102,7 @@ class MVPTests(unittest.TestCase):
                     'slides': [{'objectId': slide_id} for slide_id in initial_ids]}
                 content = {'title': 'Six slides', 'slides': OUTLINE['slides'] * 6}
                 with patch.object(slides, 'build', return_value=service):
-                    slides.create_deck(MagicMock(), content)
+                    slides.create_deck(MagicMock(), content, cover_image_url="https://example.com/cover.png")
                 requests = service.presentations.return_value.batchUpdate.call_args.kwargs['body']['requests']
                 final_ids = list(initial_ids)
                 deleted = []
@@ -113,9 +113,9 @@ class MVPTests(unittest.TestCase):
                         slide_id = request['deleteObject']['objectId']
                         deleted.append(slide_id)
                         final_ids.remove(slide_id)
-                self.assertEqual(final_ids, [f'mvp_slide_{i}' for i in range(1, 7)])
+                self.assertEqual(final_ids, [f'mvp_slide_{i}' for i in range(0, 7)])
                 self.assertEqual(deleted, initial_ids)
-                self.assertEqual(sum('insertText' in r for r in requests), 12)
+                self.assertEqual(sum('insertText' in r for r in requests), 13)
                 service.presentations.return_value.batchUpdate.assert_called_once()
 
     def test_old_database_and_refresh_persistence(self):
@@ -140,16 +140,16 @@ class MVPTests(unittest.TestCase):
                 service.presentations.return_value.create.return_value.execute.return_value = {'presentationId': 'deck123'}
                 service.presentations.return_value.get.return_value.execute.return_value = {}
                 with patch.object(slides, 'build', return_value=service):
-                    result = slides.create_deck(MagicMock(), OUTLINE, style=style)
+                    result = slides.create_deck(MagicMock(), OUTLINE, style=style, cover_image_url="https://example.com/cover.png")
                 self.assertEqual(result['style'], style)
                 requests = service.presentations.return_value.batchUpdate.call_args.kwargs['body']['requests']
                 self.assertEqual([r['createShape']['objectId'] for r in requests if 'createShape' in r],
-                                 ['mvp_title_1', 'mvp_body_1'])
-                self.assertEqual([r['insertText']['text'] for r in requests if 'insertText' in r], ['First', 'A\nB\nC'])
+                                 ['mvp_cover_band', 'mvp_title_0', 'mvp_title_1', 'mvp_body_1'])
+                self.assertEqual([r['insertText']['text'] for r in requests if 'insertText' in r], ['Demo', 'First', 'A\nB\nC'])
                 background = next(r['updatePageProperties'] for r in requests if 'updatePageProperties' in r)
                 self.assertEqual(background['pageProperties']['pageBackgroundFill']['solidFill']['color']['rgbColor'],
                                  slides.rgb(slides.STYLE_PRESETS[style]['background']))
-                text_styles = [r['updateTextStyle'] for r in requests if 'updateTextStyle' in r]
+                text_styles = [r['updateTextStyle'] for r in requests if 'updateTextStyle' in r and r['updateTextStyle']['objectId'] != 'mvp_title_0']
                 self.assertEqual(len(text_styles), 2)
                 for request, kind in zip(text_styles, ('title', 'body')):
                     self.assertEqual(request['style']['foregroundColor']['opaqueColor']['rgbColor'],
@@ -158,7 +158,7 @@ class MVPTests(unittest.TestCase):
     def test_unknown_preset_fails_before_creating_a_file(self):
         with patch.object(slides, 'build') as build:
             with self.assertRaises(ValueError):
-                slides.create_deck(MagicMock(), OUTLINE, style='unknown')
+                slides.create_deck(MagicMock(), OUTLINE, style="unknown", cover_image_url="https://example.com/cover.png")
             build.assert_not_called()
 
     def test_preset_text_has_readable_contrast(self):

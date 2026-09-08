@@ -1,6 +1,6 @@
 # MCP Slides MVP
 
-Three MCP tools create, read, and revise plain Google Slides presentations.
+Six MCP tools create, read, and revise Google Slides presentations and manage saved default styles.
 Generation uses a topic or supplied content, Mistral drafts the text, and
 **each authenticated user's own Google account** provides access and storage.
 
@@ -134,7 +134,7 @@ checks the output structure and lengths, not whether every claim is supported.
 The tool description guides Vibe to infer the basis from user intent, briefly
 state its approach, and create immediately when a topic or source text is supplied.
 A broad request such as “Create a presentation about phones” should call generation
-with `topic="phones"`, using three slides and Minimal styling by default. Missing
+with `topic="phones"`, using three content slides plus a generated image cover and the saved default style. Missing
 optional details should not trigger questions, a create/edit menu, or outline
 approval. Planning is reserved for explicit planning requests; missing required
 source material or unsupported requirements warrant clarification. Actual conversational
@@ -143,11 +143,14 @@ after deploying this change. No additional authorization scopes are needed.
 
 `slide_count` defaults to 3
 and must be an integer from 1 to 6. Optional audience and tone are limited to 300
-and 200 characters. Each slide has a title and three bullets; there is no extra
-cover slide. The return value contains `presentation_id`, `presentation_url`,
-`title`, and the applied `style`.
+and 200 characters. Each content slide has a title and three bullets. A new opening title slide
+with a generated background image is always added: `slide_count=3` means four
+slides total (one cover plus three content slides). The return value contains `presentation_id`, `presentation_url`,
+`title`, the applied `style`, `content_slide_count`, `total_slide_count`, and
+`cover_image="generated"`.
 
-`style` is optional in both generation modes: `minimal` (default; white with a
+`style` defaults to `default`, which resolves the saved connection preference or
+falls back to Minimal. Explicit presets override it for one deck: `minimal` (white with a
 blue accent), `dark` (dark background, light text, teal accent), or `warm` (cream
 with a brown accent). These are built-in renderer presets, not native Google
 themes or uploaded templates. Style goes directly to the renderer, not Mistral.
@@ -155,7 +158,7 @@ All presets share the same text boxes and editing support. Unknown presets are
 rejected before upstream calls. For example: “Create three slides using the Dark
 style.”
 
-The assistant is instructed to use Minimal without asking, honor explicit style
+The assistant is instructed to use the saved default without asking, honor explicit style
 requests, and mention the applied style beside the returned link. On the first
 successful generation in a conversation, it briefly introduces the other styles
 as options for future decks. This optional discovery message belongs in chat;
@@ -190,7 +193,7 @@ deployment to pick up the verbatim-link guidance.
 
 ## Code and local tests
 
-- `src/mcp_slides/mvp/`: application (`server`, `oauth`, `auth`, `outline`, `slides`).
+- `src/mcp_slides/mvp/`: application (`server`, `oauth`, `auth`, `outline`, `slides`, `editing`, `preferences`, `backgrounds`).
 - `scripts/`, `src/mcp_slides/ping_server.py`, `src/mcp_slides/google_auth.py`:
   preserved investigation code, never imported by the MVP.
 - `tests/`: Google consent/PKCE/refresh/revocation tests through HTTP, credential
@@ -243,11 +246,11 @@ validation, and browser-bound OAuth state remain enforced.
 
 ## Read and revise an existing slide
 
-The connector now exposes three tools: `generate_presentation`,
-`get_presentation`, and `edit_slide`. Reading is annotated as read-only; editing
+The deck workflow uses `generate_presentation`, `get_presentation`, and
+`edit_slide`; three additional tools manage saved styles. Reading is annotated as read-only; editing
 is explicitly a mutation. The existing Google `drive.file` permission remains
 sufficient for accessible decks. The internal connector scope `slides.generate`
-retains its name for compatibility and covers all three tools; it is not a
+retains its name for compatibility and covers all six tools; it is not a
 separate read-only permission. The consent page describes creation, reading and
 text revision.
 
@@ -352,3 +355,73 @@ Refresh Vibe's connector tools after deployment, then:
 5. Try an inaccessible deck from another Google account. Confirm access is denied.
 
 Automated tests mock both providers; they do not substitute for these live checks.
+
+
+## Saved default styles
+
+`get_default_style()` returns this connection's settings and a readable Markdown
+summary. `set_default_style(settings)` saves a complete validated configuration;
+`reset_default_style()` removes it. These tools do not execute Markdown or edit a
+filesystem file. SQLite stores structured settings keyed by the authenticated
+connection subject, never a user-supplied identity.
+
+```json
+{
+  "settings": {
+    "background": "#FAF5EB",
+    "title_color": "#244B63",
+    "body_color": "#263238",
+    "font_family": "Georgia"
+  }
+}
+```
+
+All four fields are required when saving. Fonts are limited to Arial, Verdana,
+Georgia, and Trebuchet MS. Colors must be six-digit hex values; title and body
+text each need at least 4.5:1 contrast against the background. Unsupported fields
+and unreadable combinations are rejected. For partial requests, the assistant
+reads current settings and submits the merged configuration.
+
+Only an explicit request such as “Save these colors as my default for future
+presentations” should save preferences. One-deck requests never change defaults.
+Generation resolves them internally; no preliminary read tool call is needed.
+Preferences survive restarts and token refresh, but a new OAuth connection has a
+new subject. Disconnect/revocation deletes its preferences. Existing decks do not
+change, and saved styles do not support arbitrary layouts or imported templates.
+
+## Automatic title-slide image
+
+Every generation requests one image through Mistral's Conversations API with the
+`image_generation` tool, using the generated presentation title and resolved
+palette. The full source document is not included in the image request. The
+existing Mistral API key is used; image generation adds latency and API usage.
+`MISTRAL_IMAGE_MODEL` optionally selects the image-capable orchestrating model
+(default `mistral-medium-latest`), independently of the text model.
+
+Downloaded PNG/JPEG/WebP data is decoded, size-checked and normalized to a 1600×900
+PNG. The cover displays it behind an opaque title band with separately editable
+text (`mvp_title_0`). Only the opening slide has an image; content slides use the
+resolved colors/font. The requested content count remains 1–6, making 2–7 slides
+total. Read current slide positions before editing: position 1 is now the cover.
+Image changes remain unsupported by `edit_slide`.
+
+Google fetches the image from a temporary `/assets/<random-token>.png` URL on the
+same deployed server. This route is unauthenticated because Google must fetch it;
+the 256-bit random token grants access only to that image. SQLite stores the token
+hash, image bytes, connection subject, and ten-minute expiry. The image is removed
+after deck creation finishes or fails; expired rows are cleaned during database
+access, and revocation removes connection images. Tokens and image paths are not
+included in application request logs. Google retains its inserted copy; the temporary
+URL is not a permanent asset host. Mistral provider-side retention is separate;
+conversation storage is disabled in the request.
+
+If image generation or preparation fails, no Google deck is created and the tool
+returns an error. If Google fails after creating a deck, the existing partial-deck
+error returns its URL. Do not silently retry generation: repeated calls can incur
+additional image charges and create duplicate decks. Image format checks are not
+a visual-quality guarantee; verify covers and title fit in a live deck.
+
+The existing Railway volume supports the new SQLite tables automatically. No new
+Google scope or required environment variable is needed. The service must be
+publicly reachable at `PUBLIC_BASE_URL` for Google's image fetch; a localhost-only
+server needs a public tunnel for the complete image flow.

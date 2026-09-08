@@ -5,7 +5,11 @@ The MVP proves that a user can connect the MCP in Vibe, authorize their own Goog
 ## Included
 
 - Per-user Google authorization through the connector, with persisted credentials.
-- Generation: `generate_presentation(topic?, slide_count=3, audience?, tone?, basis="topic", source_content?, instructions?, style="minimal")`.
+- Generation: `generate_presentation(topic?, slide_count=3, audience?, tone?, basis="topic", source_content?, instructions?, style="default")`.
+- Saved connection-scoped colors/font in SQLite, with get/set/reset tools and a
+  readable Markdown summary. Validated configuration, not executable Markdown.
+- An automatic new title slide with a Mistral-generated image on every generation.
+  `slide_count` counts content slides; total is `slide_count + 1`.
 - Three built-in visual presets: Minimal (default), Dark, and Warm. The renderer
   applies consistent typography and colors to the same editable text boxes.
   Style selection is optional and applies only when creating a new deck.
@@ -21,14 +25,14 @@ The MVP proves that a user can connect the MCP in Vibe, authorize their own Goog
   instructions. Existing topic-only calls remain supported.
 - Optional instructions are passed to Mistral in both modes. The calling assistant
   supplies relevant conversation or notes as text; the tool cannot retrieve them.
-- Mistral-generated content: 1–6 slides, each with a title and three bullets, using a simple layout.
+- Mistral-generated content: 1–6 content slides, each with a title and three bullets, using a simple layout.
 - Creation of a new Google Slides deck and return of its title, ID, and URL.
 - Separate MVP code in this package; investigation scripts remain separate.
 
 ## Acceptance criteria
 
 - A user can complete Google consent and return to Vibe.
-- A generation request creates the requested number of populated slides in that user's Drive, without an extra empty slide.
+- A generation request creates the requested content slides plus one populated title slide in that user's Drive, without an extra empty slide.
 - The returned URL opens the created deck; the chat should copy it verbatim.
 - Each connection uses its own Google credentials, with no shared-account fallback.
 - Authentication or generation failures produce an error rather than a claimed success.
@@ -49,7 +53,7 @@ The user has tested the live authorization and generation flow successfully. A b
 ## Deferred
 
 - Public onboarding without adding Google tester emails: see the [OAuth publishing plan](../../../oauth-publishing-plan.md).
-- Richer layouts, images, user templates, native theme import, and restyling existing decks.
+- Richer layouts, content-slide images, image editing, user templates, native theme import, and restyling existing decks.
 - Structural or visual editing, arbitrary/richly styled text boxes, speaker notes,
   source-brief persistence, undo, folder selection, and export formats.
 - Broad public-launch readiness, including usage limits and further credential-storage review.
