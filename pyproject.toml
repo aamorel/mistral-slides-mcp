@@ -5,6 +5,8 @@ description = "Investigation project for a Vibe custom MCP Connector that create
 readme = "scope.md"
 requires-python = ">=3.12"
 dependencies = [
+    "google-api-python-client>=2.200.0",
+    "google-auth-oauthlib>=1.4.1",
     "mcp[cli]",
 ]
 

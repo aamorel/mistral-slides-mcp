@@ -3,3 +3,6 @@ __pycache__/
 *.py[cod]
 .env
 .DS_Store
+google-auth-client.json
+google-oauth-client.json
+.secrets/

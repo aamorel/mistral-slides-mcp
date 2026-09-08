@@ -719,3 +719,84 @@ Investigation 2 decision:
 Investigation 2 status:
 - Complete for no-auth and static bearer auth.
 - Full OAuth behavior remains a separate investigation.
+
+### 2026-09-08 - Investigation 3 Started: Standalone Google OAuth And Slides API
+
+Question:
+Can a standalone script request `drive.file`, authenticate as a real Google user, create a Google Slides deck in that user's Drive, and populate simple slides?
+
+Implementation changes:
+- Added Google API dependencies:
+  - `google-api-python-client`
+  - `google-auth-oauthlib`
+- Added `scripts/google_slides_smoke.py`.
+- The script uses `google-auth-client.json` as the local OAuth client config.
+- The user token cache is written to `.secrets/google-token-drive-file.json`.
+- `.gitignore` now ignores both OAuth client filename variants and `.secrets/`.
+
+Local run command:
+
+```sh
+uv run python scripts/google_slides_smoke.py
+```
+
+Expected behavior:
+- Browser opens a Google OAuth consent flow.
+- Requested scope is:
+
+```text
+https://www.googleapis.com/auth/drive.file
+```
+
+- Local callback uses:
+
+```text
+http://localhost:8081/
+```
+
+- Script creates a presentation titled `MCP Slides Smoke Test`.
+- Script inserts two plain slides with title text boxes and bullet text boxes.
+- Script prints:
+  - `presentation_id`
+  - `presentation_url`
+  - `title`
+
+Google Cloud prerequisites:
+- Google Slides API enabled.
+- Google Drive API enabled.
+- OAuth consent configured with the user as a test user.
+- OAuth client type: web application.
+- Authorized redirect URI:
+
+```text
+http://localhost:8081/
+```
+
+What to record:
+- Whether Google allows the `drive.file` scope without adding it manually in the Auth Platform UI.
+- Whether the consent screen appears for the test user.
+- Whether the script receives a refresh token.
+- Whether `presentations.create` succeeds with only `drive.file`.
+- Whether `presentations.batchUpdate` succeeds with only `drive.file`.
+- Whether the created deck appears in the authenticated user's Google Drive.
+
+Status:
+- Script created.
+- Compile check passed.
+- OAuth/API run pending.
+
+First OAuth run result:
+- Google opened the consent URL but blocked it with `Error 400: redirect_uri_mismatch`.
+- The script generated this redirect URI:
+
+```text
+http://localhost:8081/
+```
+
+- The Google OAuth client had been configured with:
+
+```text
+http://localhost:8081/oauth2callback
+```
+
+- Next action: add `http://localhost:8081/` exactly to the Google OAuth client's Authorized redirect URIs, then rerun the script.
