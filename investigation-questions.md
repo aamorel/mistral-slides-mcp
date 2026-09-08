@@ -636,3 +636,17 @@ Status:
 - Local no-auth mode passed.
 - Local static bearer mode passed.
 - Deployment update and Vibe bearer-mode test pending.
+
+Deployed no-auth Vibe result:
+- Vibe successfully called `ping` after the logging/auth deployment.
+- Railway logs show `user_agent: "MistralAI-MCPClient/1.0"`.
+- Railway logs show repeated `POST /mcp` calls with `200 OK` and `202 Accepted`.
+- Railway logs show `authorization_present: false`.
+- Railway logs show `authorization_scheme: null`.
+- Railway logs show `mcp_session_id_present: false`.
+- Observed `x_forwarded_for` values include Mistral-originating public IPs plus Railway forwarding context.
+
+Interim decision:
+- In no-auth mode, Vibe does not send a user-level identity or authorization header to the MCP server.
+- No-auth remains viable only for public/demo tools, not for user-scoped Google Drive access.
+- Next auth test should set `CONNECTOR_BEARER_TOKEN` on Railway and configure bearer auth in Vibe, if the Connector UI supports it.
