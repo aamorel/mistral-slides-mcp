@@ -636,7 +636,7 @@ Status:
 - Local no-auth mode passed.
 - Local static bearer mode passed.
 - Deployment update completed.
-- Vibe bearer-mode test pending with Connector-side bearer configuration.
+- Vibe bearer-mode test passed.
 
 Deployed no-auth Vibe result:
 - Vibe successfully called `ping` after the logging/auth deployment.
@@ -679,7 +679,8 @@ Interim decision:
 
 Bearer-token troubleshooting update:
 - A direct deployed smoke test using `Authorization: Bearer test-vibe-bearer-2026` also returned `401 Unauthorized`.
-- That means either the Railway `CONNECTOR_BEARER_TOKEN` value did not exactly equal `test-vibe-bearer-2026`, or it included the `Bearer ` prefix while the server expected only the raw token.
+- The Railway `CONNECTOR_BEARER_TOKEN` value did not exactly equal `test-vibe-bearer-2026`.
+- Actual cause found: the Railway value was `test-vibe-bearer-2026 5`.
 - Server auth was updated to normalize both server-side and client-side values:
   - `CONNECTOR_BEARER_TOKEN=test-vibe-bearer-2026`
   - `CONNECTOR_BEARER_TOKEN=Bearer test-vibe-bearer-2026`
@@ -687,3 +688,34 @@ Bearer-token troubleshooting update:
   - `Authorization: test-vibe-bearer-2026`
 - On auth failure, logs now include short SHA-256 fingerprints of expected/provided values, not the raw tokens.
 - Local validation passed with a server env var containing the `Bearer ` prefix and a client header using the standard `Authorization: Bearer ...` format.
+
+Deployed bearer-token mismatch result:
+- Vibe sent an `Authorization` header.
+- Logs showed `authorization_present: true` and `authorization_scheme: "Bearer"`.
+- Vibe's provided token fingerprint was `0f90b65c2a3e`.
+- Local fingerprint check confirmed `0f90b65c2a3e` is `test-vibe-bearer-2026`.
+- Railway's expected token fingerprint was `e58cd8538776`.
+- Conclusion: Vibe is configured correctly, but Railway's `CONNECTOR_BEARER_TOKEN` value is different from `test-vibe-bearer-2026`.
+- Next action: update Railway's `CONNECTOR_BEARER_TOKEN` value to exactly `test-vibe-bearer-2026`, then redeploy.
+
+Deployed bearer-auth Vibe success:
+- Railway `CONNECTOR_BEARER_TOKEN` was corrected to exactly `test-vibe-bearer-2026`.
+- Vibe Connector auth was configured with:
+
+```text
+Authorization: Bearer test-vibe-bearer-2026
+```
+
+- Vibe successfully connected and called `ping`.
+- Expected log pattern: `authorization_present: true`, `authorization_scheme: "Bearer"`, and no `bearer_auth_failed` warning.
+
+Investigation 2 decision:
+- Vibe supports a static custom connection header for private MCP Connectors.
+- The header must be configured explicitly in the Connector connection settings.
+- Vibe does not infer or prompt for bearer auth after receiving an upstream `401`.
+- A static bearer token is viable for protecting the MCP server from unauthenticated public access.
+- Static bearer auth does not solve user-scoped Google authorization by itself; it only authenticates Vibe-to-MCP traffic.
+
+Investigation 2 status:
+- Complete for no-auth and static bearer auth.
+- Full OAuth behavior remains a separate investigation.
