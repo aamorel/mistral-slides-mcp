@@ -65,10 +65,11 @@ class OAuthTests(unittest.TestCase):
         page = self.client.get(url)
         self.assertEqual(page.status_code, 200)
         self.assertIn('Continue with Google', page.text)
+        self.assertEqual(page.headers['referrer-policy'], 'strict-origin')
         self.assertIn(CALLBACK, page.text)
         ticket = parse_qs(urlparse(url).query)['request'][0]
         csrf = self.client.cookies.get(oauth.COOKIE)
-        response = self.client.post('/auth/google/start', data={'request': ticket, 'csrf': csrf}, follow_redirects=False)
+        response = self.client.post('/auth/google/start', data={'request': ticket, 'csrf': csrf}, headers={'Origin': BASE}, follow_redirects=False)
         self.assertEqual(response.status_code, 303, response.text)
         query = parse_qs(urlparse(response.headers['location']).query)
         self.assertEqual(query['scope'], [auth.DRIVE_FILE_SCOPE])
@@ -193,6 +194,11 @@ class OAuthTests(unittest.TestCase):
         ticket = parse_qs(urlparse(url).query)['request'][0]
         response = self.client.post('/auth/google/start', data={'request': ticket, 'csrf': 'wrong'})
         self.assertEqual(response.status_code, 400)
+        for origin in ('null', 'https://evil.example.com'):
+            response = self.client.post('/auth/google/start',
+                data={'request': ticket, 'csrf': self.client.cookies.get(oauth.COOKIE)},
+                headers={'Origin': origin})
+            self.assertEqual(response.status_code, 400)
         response = self.begin(redirect_uri='https://evil.example.com/callback')
         self.assertEqual(response.status_code, 400)
         for uri in ('https://example.com/callback#fragment', 'http://example.com/callback', 'javascript:alert(1)'):

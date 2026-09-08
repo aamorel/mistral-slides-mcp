@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import logging
 import re
 import secrets
 import time
@@ -52,7 +53,8 @@ def delete(db, kind, key):
     db.execute("delete from connector_oauth where kind=? and key=?", (kind, key))
 
 
-def failure(message="This connection link expired or is invalid. Start connecting again in Vibe."):
+def failure(message="This connection link expired or is invalid. Start connecting again in Vibe.", reason="invalid_flow"):
+    logging.getLogger("uvicorn.error").warning("oauth_failure reason=%s", reason)
     return HTMLResponse(f"<!doctype html><title>Connection not completed</title><h1>Connection not completed</h1><p>{escape(message)}</p>",
                         status_code=400, headers=SAFE_HEADERS)
 
@@ -122,17 +124,21 @@ class GoogleOAuthProvider(OAuthAuthorizationServerProvider[AuthorizationCode, Re
 <input type="hidden" name="request" value="{escape(ticket)}">
 <input type="hidden" name="csrf" value="{escape(csrf)}">
 <button type="submit">Continue with Google</button></form>
-<p>You can close this page to cancel.</p></html>''', headers=SAFE_HEADERS)
+<p>You can close this page to cancel.</p></html>''', headers={**SAFE_HEADERS, "Referrer-Policy": "strict-origin"})
+        # no-referrer turns a browser form POST's Origin into 'null'. Send only
+        # the origin (never the authorization ticket) while preserving CSRF checks.
         response.set_cookie(COOKIE, csrf, max_age=FLOW_TTL, secure=self.base_url.startswith('https://'), httponly=True, samesite='lax')
         return response
 
     async def consent_submit(self, request):
         form = await request.form()
         cookie, csrf = request.cookies.get(COOKIE, ''), str(form.get('csrf', ''))
-        if not cookie or not hmac.compare_digest(cookie.encode(), csrf.encode()):
-            return failure()
+        if not cookie:
+            return failure('Your browser did not retain the connection cookie. Enable cookies and reconnect in Vibe.', reason='missing_consent_cookie')
+        if not hmac.compare_digest(cookie.encode(), csrf.encode()):
+            return failure(reason='csrf_mismatch')
         if request.headers.get('origin') not in (None, self.base_url):
-            return failure()
+            return failure('The browser could not verify the connection page. Start connecting again in Vibe.', reason='invalid_origin')
         return await run_in_threadpool(self.start_google, str(form.get('request', '')), cookie)
 
     def start_google(self, ticket, cookie):
