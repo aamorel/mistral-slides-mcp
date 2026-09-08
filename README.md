@@ -230,6 +230,22 @@ retains its name for compatibility and covers all three tools; it is not a
 separate read-only permission. The consent page describes creation, reading and
 text revision.
 
+`get_presentation` is a separate tool because reading is useful on its own
+("What's on slide two?") and helps Vibe choose an edit. It provides the current
+slide IDs, supported elements, and revision needed by `edit_slide`.
+
+For "Make slide two clearer," the intended flow is:
+
+1. Vibe reads the deck and identifies the second slide and its editable text.
+2. Vibe calls `edit_slide` with that slide's ID, the revision, and the request.
+3. The server rereads the deck, rejects a stale revision, and prepares the edit.
+   Google also checks the revision when applying the update.
+4. Vibe returns the same deck link and briefly describes what changed.
+
+The user does not need to request the read step or handle IDs. The exposed read
+helps the assistant understand the request; the internal read and validation
+protect the write. Editing does not rely on the assistant having read correctly.
+
 Call `get_presentation(presentation_id)` first. It reads the current Google deck,
 including manual changes, and returns `revision_id`, ordered slides with stable
 `slide_id` values, and normalized elements with `element_id`, `type`, `editable`,
