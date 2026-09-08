@@ -559,3 +559,80 @@ Investigation 1 decision:
 
 Investigation 1 status:
 - Complete.
+
+### 2026-09-08 - Investigation 2 Started: Vibe Authentication Behavior
+
+Question:
+What authentication modes does Vibe support for our MCP server, and what request metadata does it send during discovery and invocation?
+
+Implementation changes:
+- Added safe HTTP request logging around the MCP app.
+- Added `GET /health` for deployment health checks.
+- Added optional static bearer auth for `/mcp`.
+- The bearer gate is controlled by the `CONNECTOR_BEARER_TOKEN` environment variable.
+- No bearer token is logged. Logs only record whether `Authorization` is present and what scheme it uses.
+- Updated `scripts/smoke_ping_client.py` to accept a URL argument and optional `MCP_BEARER_TOKEN`.
+
+Safe request fields logged:
+- `method`
+- `path`
+- `host`
+- `user_agent`
+- `origin`
+- `referer`
+- `x_forwarded_for`
+- `authorization_present`
+- `authorization_scheme`
+- `mcp_session_id_present`
+
+No-auth local validation:
+
+```sh
+uv run mcp-slides-ping
+uv run python scripts/smoke_ping_client.py
+```
+
+Result:
+- Passed.
+- Tool discovery returned `ping`.
+- Tool invocation returned the expected structured payload.
+- Logs showed `authorization_present: false`.
+
+Bearer-auth local validation:
+
+```sh
+CONNECTOR_BEARER_TOKEN=test-token uv run mcp-slides-ping
+uv run python scripts/smoke_ping_client.py
+MCP_BEARER_TOKEN=test-token uv run python scripts/smoke_ping_client.py
+```
+
+Result:
+- No-token MCP client failed with `401 Unauthorized`.
+- Token-authenticated MCP client passed.
+- Logs showed `authorization_present: true` and `authorization_scheme: "Bearer"` for authorized calls.
+
+Railway test plan:
+1. Set a Railway variable:
+
+```text
+CONNECTOR_BEARER_TOKEN=<temporary-shared-secret>
+```
+
+2. Redeploy.
+3. Confirm `/health` returns `{"ok": true}`.
+4. In Vibe, edit or recreate the custom MCP Connector.
+5. Configure bearer auth with the same token, if the UI supports it.
+6. Confirm Vibe can discover and invoke `ping`.
+7. Watch Railway logs to record whether Vibe sends `Authorization: Bearer ...`.
+
+What to record from Vibe:
+- Whether the Connector UI offers bearer-token auth.
+- Whether auth is configured at registration time or connection time.
+- Whether Vibe accepts the bearer-protected `/mcp` endpoint.
+- Whether failed auth appears clearly in the UI.
+- Whether Vibe still exposes `ping` and `read_resource`.
+
+Status:
+- Local no-auth mode passed.
+- Local static bearer mode passed.
+- Deployment update and Vibe bearer-mode test pending.

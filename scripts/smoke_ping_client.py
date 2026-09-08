@@ -3,13 +3,23 @@
 from __future__ import annotations
 
 import anyio
+import os
 import sys
+import httpx2
 from mcp import Client
+from mcp.client.streamable_http import streamable_http_client
 
 
 async def run() -> None:
     url = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:8000/mcp"
-    async with Client(url) as client:
+    bearer_token = os.getenv("MCP_BEARER_TOKEN")
+    if bearer_token:
+        http_client = httpx2.AsyncClient(headers={"Authorization": f"Bearer {bearer_token}"})
+        server = streamable_http_client(url, http_client=http_client)
+    else:
+        server = url
+
+    async with Client(server) as client:
         tool_result = await client.list_tools()
         print("tools:", [tool.name for tool in tool_result.tools])
         result = await client.call_tool("ping", {})
