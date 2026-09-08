@@ -1,9 +1,9 @@
 # Try the Google Slides connector
 
-Generate from a topic or your notes, choose **Minimal**, **Dark**, or **Warm**
-styling or save your preferred colors/font, then revise wording through chat.
-Your saved style is used automatically, falling back to Minimal;
-there is no style-selection step unless you ask for one.
+Generate from a topic or your notes, customize your default colors and font,
+and revise wording through chat. Every new presentation uses your default style
+automatically. Before customization, it uses white backgrounds, blue titles,
+charcoal body text, and Arial.
 
 1. In Vibe, open **Connectors → Add Connector → Custom MCP Connector**.
 2. Name it **Mistral Slides** and paste this server URL:
@@ -19,10 +19,9 @@ take a little longer; the title stays editable.
 
 The presentation should appear in **your Google Drive**. Open the returned link—or open it directly in Drive if the link doesn’t work.
 
-For a different look, ask: “Create three slides about this topic using the Dark
-style.” Minimal uses white with a blue accent, Dark uses a dark background with
-light text, and Warm uses cream with a brown accent. Presets apply to new decks;
-changing an existing deck's style and custom templates are not supported.
+For a different look, ask: “Change my default background to cream and my font to
+Georgia.” The assistant preserves your other settings. Changes apply to future
+presentations; changing an existing deck's style and custom templates are not supported.
 
 After creating a deck, try: “Make slide two less technical.” The connector can
 revise supported text at the same link; it cannot rearrange slides or edit images.

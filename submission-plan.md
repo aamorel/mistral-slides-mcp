@@ -4,7 +4,7 @@ Goal: deliver a working deployed connector, a clear repository, and an
 implementation I can explain and maintain confidently.
 
 Keep the current feature scope: generate from a topic or source content, read a
-deck, choose a built-in style for new decks, and revise supported text on one slide. Focus on finishing and validating
+deck, customize default colors/font for future decks, and revise supported text on one slide. Focus on finishing and validating
 these flows rather than adding features.
 
 ## 1. Understand and own the code
@@ -79,15 +79,15 @@ Google and Mistral; these checks exercise the real providers and conversation.
   immediate generation of three content slides plus one image cover using saved defaults without a create/edit menu or
   questions about optional inputs. Separately verify an explicit planning request
   stays in conversation until creation is requested.
-- [ ] Save a custom style, generate without specifying a preset, and verify it
-  is applied. Verify explicit presets override it only for one deck, reset works,
+- [ ] Save a default style, generate a deck, and verify it
+  is applied. Verify partial changes preserve other settings, reset works,
   and a second connection cannot read or change the first connection’s preference.
 - [ ] Verify the automatic image cover, editable title, extra-slide count, and
   temporary image fetch from the deployed server.
 - [ ] Generate from supplied content and check that facts and uncertainty are preserved.
 - [ ] Confirm the post-generation chat invitation offers relevant wording edits.
-- [ ] Generate with Minimal (default), Dark, and Warm. Check visual fit, contrast,
-  bullets, and wording revisions in each. Confirm style discovery is brief and
+- [ ] Generate with built-in defaults and customized colors/font. Check visual fit,
+  contrast, bullets, and wording revisions in each. Confirm style discovery is brief and
   does not imply that existing decks can be restyled.
 - [ ] Revise one slide; verify the same deck URL and unchanged surrounding slides.
 - [ ] Check that fonts, bullets, positions, and unsupported elements survive the edit.

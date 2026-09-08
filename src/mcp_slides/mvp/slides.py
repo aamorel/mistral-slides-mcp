@@ -1,15 +1,7 @@
-"""Title-and-bullet rendering with a small set of visual presets."""
+"""Title-and-bullet rendering with the resolved default colors and font."""
 from typing import Any
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
-
-# Presets style the same editable boxes; these are not native Google themes.
-STYLE_PRESETS = {
-    "minimal": {"background": "FFFFFF", "title": "244B63", "body": "263238"},
-    "dark": {"background": "18222E", "title": "9EDADB", "body": "F1F5F9"},
-    "warm": {"background": "FAF5EB", "title": "854529", "body": "403B35"},
-}
-
 
 def rgb(hex_color: str) -> dict[str, float]:
     return dict(zip(("red", "green", "blue"),
@@ -56,13 +48,8 @@ def insert_text_request(object_id: str, text: str) -> dict[str, Any]:
     }
 
 
-def create_deck(creds: Credentials, outline: dict[str, Any], style: str = "minimal", *,
-                palette: dict | None = None, cover_image_url: str) -> dict[str, Any]:
-    if style not in (*STYLE_PRESETS, "custom"):
-        raise ValueError("Unknown style. Choose minimal, dark, or warm.")
-    if style == "custom" and not palette:
-        raise ValueError("Custom styling requires validated settings.")
-    palette = palette or STYLE_PRESETS[style]
+def create_deck(creds: Credentials, outline: dict[str, Any], *,
+                palette: dict, cover_image_url: str) -> dict[str, Any]:
     service = build("slides", "v1", credentials=creds, cache_discovery=False)
     title = outline["title"]
     presentation = service.presentations().create(body={"title": title}).execute()
@@ -161,7 +148,6 @@ def create_deck(creds: Credentials, outline: dict[str, Any], style: str = "minim
         "presentation_id": presentation_id,
         "presentation_url": f"https://docs.google.com/presentation/d/{presentation_id}/edit",
         "title": title,
-        "style": style,
         "content_slide_count": len(outline["slides"]),
         "total_slide_count": len(outline["slides"]) + 1,
         "cover_image": "generated",

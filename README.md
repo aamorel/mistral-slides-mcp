@@ -146,25 +146,25 @@ and must be an integer from 1 to 6. Optional audience and tone are limited to 30
 and 200 characters. Each content slide has a title and three bullets. A new opening title slide
 with a generated background image is always added: `slide_count=3` means four
 slides total (one cover plus three content slides). The return value contains `presentation_id`, `presentation_url`,
-`title`, the applied `style`, `content_slide_count`, `total_slide_count`, and
+`title`, the applied `style_settings`, `content_slide_count`, `total_slide_count`, and
 `cover_image="generated"`.
 
-`style` defaults to `default`, which resolves the saved connection preference or
-falls back to Minimal. Explicit presets override it for one deck: `minimal` (white with a
-blue accent), `dark` (dark background, light text, teal accent), or `warm` (cream
-with a brown accent). These are built-in renderer presets, not native Google
-themes or uploaded templates. Style goes directly to the renderer, not Mistral.
-All presets share the same text boxes and editing support. Unknown presets are
-rejected before upstream calls. For example: “Create three slides using the Dark
-style.”
+Every new deck uses the connection's default colors and font automatically.
+There is no `style` argument, named preset, or per-deck override. Without saved
+preferences, the default is a white background, blue titles (`#244B63`), charcoal
+body text (`#263238`), and Arial. `set_default_style` changes the defaults for
+future decks; `reset_default_style` restores these built-in settings. Partial
+changes use `get_default_style` first, then save the complete merged settings.
+The renderer applies these settings directly; the cover image generator also
+receives the resolved palette.
 
-The assistant is instructed to use the saved default without asking, honor explicit style
-requests, and mention the applied style beside the returned link. On the first
-successful generation in a conversation, it briefly introduces the other styles
-as options for future decks. This optional discovery message belongs in chat;
-there is no mandatory selection step. Once-per-conversation behavior depends on
-Vibe's context, not persisted server state. Restyling an existing deck is not
-supported, and the assistant must not create a replacement without a user request.
+On the first successful generation in a conversation, the assistant briefly
+mentions customizing default colors and font for future presentations. This
+optional discovery message belongs in chat; there is no mandatory selection step.
+Once-per-conversation behavior depends on the client's context, not persisted
+server state. A request to style only one deck must not silently change saved
+defaults. Restyling an existing deck is unsupported, and the assistant must not
+create a replacement without a user request.
 
 Google access is checked before spending a Mistral request. Invalid model output
 is retried once and validated before deck creation. If population fails after

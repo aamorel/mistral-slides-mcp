@@ -31,6 +31,9 @@ class StyleSettings(BaseModel):
                 'body': self.body_color[1:], 'font_family': self.font_family}
 
 
+DEFAULT_STYLE = StyleSettings(background='#FFFFFF', title_color='#244B63', body_color='#263238', font_family='Arial')
+
+
 def result(settings, saved):
     return {'saved': saved, 'settings': settings.model_dump(),
             'markdown': f'# Default presentation style\n\n- Background: {settings.background}\n'
@@ -42,7 +45,7 @@ def result(settings, saved):
 def get_style(subject):
     with closing(auth.connect()) as db:
         row = db.execute('select settings_json from style_preferences where subject=?', (subject,)).fetchone()
-    return result(StyleSettings.model_validate_json(row[0]) if row else StyleSettings(background='#FFFFFF', title_color='#244B63', body_color='#263238', font_family='Arial'), bool(row))
+    return result(StyleSettings.model_validate_json(row[0]) if row else DEFAULT_STYLE, bool(row))
 
 
 def set_style(subject, settings):
@@ -61,4 +64,4 @@ def reset_style(subject):
     with closing(auth.connect()) as db:
         db.execute('delete from style_preferences where subject=?', (subject,))
         db.commit()
-    return result(StyleSettings(background='#FFFFFF', title_color='#244B63', body_color='#263238', font_family='Arial'), False)
+    return result(DEFAULT_STYLE, False)

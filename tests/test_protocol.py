@@ -14,13 +14,13 @@ import httpx2
 import uvicorn
 from mcp import Client
 from mcp.client.streamable_http import streamable_http_client
-from mcp_slides.mvp import server, auth
+from mcp_slides.mvp import server, auth, preferences
 from mcp_slides.mvp.oauth import GoogleOAuthProvider, SCOPE
 
 ENV = {'CONNECTOR_BEARER_TOKEN': 'protocol-secret', 'GOOGLE_CLIENT_ID': 'fake',
        'GOOGLE_CLIENT_SECRET': 'fake', 'PUBLIC_BASE_URL': 'http://127.0.0.1',
        'MISTRAL_API_KEY': 'fake'}
-RESULT = {'presentation_id': 'test123', 'presentation_url': 'https://docs.google.com/presentation/d/test123/edit', 'title': 'Test', 'style': 'minimal'}
+RESULT = {'presentation_id': 'test123', 'presentation_url': 'https://docs.google.com/presentation/d/test123/edit', 'title': 'Test', 'style_settings': preferences.DEFAULT_STYLE.model_dump()}
 
 
 class ProtocolTests(unittest.IsolatedAsyncioTestCase):
@@ -56,10 +56,9 @@ class ProtocolTests(unittest.IsolatedAsyncioTestCase):
                         self.assertEqual(schema['properties']['basis']['default'], 'topic')
                         self.assertIn('source_content', schema['properties'])
                         self.assertIn('instructions', schema['properties'])
-                        self.assertEqual(schema['properties']['style']['enum'], ['default', 'minimal', 'dark', 'warm'])
-                        self.assertEqual(schema['properties']['style']['default'], 'default')
+                        self.assertNotIn('style', schema['properties'])
                         for arguments in ({'topic': 'Demo', 'slide_count': 7}, {'topic': '   '}, {'topic': 'Demo', 'slide_count': True},
-                                          {}, {'basis': 'content'}, {'topic': 'Demo', 'style': 'unknown'},
+                                          {}, {'basis': 'content'},
                                           {'basis': 'content', 'source_content': '   '},
                                           {'basis': 'content', 'source_content': 'Notes', 'topic': '   '},
                                           {'topic': 'Demo', 'source_content': 'Notes'},
@@ -82,7 +81,7 @@ class ProtocolTests(unittest.IsolatedAsyncioTestCase):
                         self.assertEqual(json.loads(text_outputs[0])['presentation_url'], RESULT['presentation_url'])
                         credentials.assert_called_with('alice')
                         self.assertEqual(render.call_args.args[0], 'alice')
-                        self.assertEqual(render.call_args.kwargs['style'], 'minimal')
+                        self.assertEqual(render.call_args.kwargs['palette'], preferences.DEFAULT_STYLE.palette())
                         self.assertEqual(render.call_args.kwargs['cover_image_url'], 'https://example.com/cover.png')
                         self.assertEqual(generate.call_args.args[:4], ('Demo', 3, None, None))
                         self.assertEqual(generate.call_args.kwargs,
@@ -100,15 +99,6 @@ class ProtocolTests(unittest.IsolatedAsyncioTestCase):
                                 'basis': 'content', 'source_content': 'Pilot budget is €5,000.',
                                 'instructions': 'Lead with the decision.'})
                             self.assertEqual(render.call_args.args[0], 'alice')
-                        for style in ('dark', 'warm'):
-                            for brief in ({'topic': 'Demo'}, {'basis': 'content', 'source_content': 'Pilot notes'}):
-                                render.return_value = {**RESULT, 'style': style}
-                                result = await client.call_tool('generate_presentation', {**brief, 'style': style})
-                                self.assertFalse(result.is_error)
-                                self.assertEqual(result.structured_content['style'], style)
-                                self.assertEqual(render.call_args.kwargs['style'], style)
-                                self.assertNotIn('style', generate.call_args.kwargs)
-                        render.return_value = RESULT
                         settings = {'background': '#FAF5EB', 'title_color': '#244B63', 'body_color': '#263238', 'font_family': 'Georgia'}
                         result = await client.call_tool('set_default_style', {'settings': settings})
                         self.assertFalse(result.is_error)
@@ -117,17 +107,20 @@ class ProtocolTests(unittest.IsolatedAsyncioTestCase):
                         self.assertEqual(result.structured_content['settings'], settings)
                         result = await client.call_tool('generate_presentation', {'topic': 'Saved preference'})
                         self.assertFalse(result.is_error)
-                        self.assertEqual(render.call_args.kwargs['style'], 'custom')
+                        self.assertEqual(result.structured_content['style_settings'], settings)
                         self.assertEqual(render.call_args.kwargs['palette']['font_family'], 'Georgia')
                         result = await client.call_tool('reset_default_style', {})
                         self.assertFalse(result.structured_content['saved'])
+                        result = await client.call_tool('generate_presentation', {'topic': 'After reset'})
+                        self.assertEqual(result.structured_content['style_settings'], preferences.DEFAULT_STYLE.model_dump())
+                        self.assertEqual(render.call_args.kwargs['palette'], preferences.DEFAULT_STYLE.palette())
                         await client.call_tool('set_default_style', {'settings': settings})
                 async with httpx2.AsyncClient(headers={'Authorization': 'Bearer ' + bob.access_token}) as http:
                     async with Client(streamable_http_client(f'http://127.0.0.1:{port}/mcp', http_client=http)) as client:
                         result = await client.call_tool('generate_presentation', {'topic': 'Bob deck'})
                         self.assertFalse(result.is_error)
                         credentials.assert_called_with('bob')
-                        self.assertEqual(render.call_args.kwargs['style'], 'minimal')
+                        self.assertEqual(render.call_args.kwargs['palette'], preferences.DEFAULT_STYLE.palette())
                         preference = await client.call_tool('get_default_style', {})
                         self.assertFalse(preference.structured_content['saved'])
                         self.assertEqual(render.call_args.args[0], 'bob')

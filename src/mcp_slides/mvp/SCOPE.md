@@ -5,14 +5,14 @@ The MVP proves that a user can connect the MCP in Vibe, authorize their own Goog
 ## Included
 
 - Per-user Google authorization through the connector, with persisted credentials.
-- Generation: `generate_presentation(topic?, slide_count=3, audience?, tone?, basis="topic", source_content?, instructions?, style="default")`.
+- Generation: `generate_presentation(topic?, slide_count=3, audience?, tone?, basis="topic", source_content?, instructions?)`.
 - Saved connection-scoped colors/font in SQLite, with get/set/reset tools and a
   readable Markdown summary. Validated configuration, not executable Markdown.
 - An automatic new title slide with a Mistral-generated image on every generation.
   `slide_count` counts content slides; total is `slide_count + 1`.
-- Three built-in visual presets: Minimal (default), Dark, and Warm. The renderer
+- Every new deck uses the connection's default colors/font, with built-in settings
+  before customization. No named presets or per-deck style override. The renderer
   applies consistent typography and colors to the same editable text boxes.
-  Style selection is optional and applies only when creating a new deck.
 - Reading: `get_presentation(presentation_id)` returns current slide/element IDs,
   text, revision ID, and explicit editability/unsupported reasons. It does not
   flatten slides into the generation schema or interpret visual elements.

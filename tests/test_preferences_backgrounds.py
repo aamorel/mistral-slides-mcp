@@ -112,16 +112,16 @@ class PreferenceAndImageTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 backgrounds.generate_image('Phones', {})
 
-    def test_generation_resolves_preferences_overrides_and_cleans_up(self):
+    def test_generation_uses_saved_style_and_cleans_up(self):
         preferences.set_style('alice', preferences.StyleSettings(**SETTINGS))
-        for requested, applied in [('default', 'custom'), ('dark', 'dark')]:
-            with patch.object(server, 'get_access_token', return_value=SimpleNamespace(subject='alice')), patch.object(auth, 'load_credentials', return_value='creds'), patch.object(server.outline, 'generate_outline', return_value=OUTLINE), patch.object(backgrounds, 'generate_image', return_value=PNG), patch.object(slides, 'create_deck', return_value={'presentation_url': 'https://example.com/deck'}) as render:
-                asyncio.run(server.generate_presentation('Phones', style=requested))
-                self.assertEqual(render.call_args.kwargs['style'], applied)
-                if applied == 'custom':
-                    self.assertEqual(render.call_args.kwargs['palette']['font_family'], 'Georgia')
-                with closing(auth.connect()) as db:
-                    self.assertEqual(db.execute('select count(*) from temporary_images').fetchone()[0], 0)
+        with patch.object(server, 'get_access_token', return_value=SimpleNamespace(subject='alice')), patch.object(auth, 'load_credentials', return_value='creds'), patch.object(server.outline, 'generate_outline', return_value=OUTLINE), patch.object(backgrounds, 'generate_image', return_value=PNG) as image, patch.object(slides, 'create_deck', return_value={'presentation_url': 'https://example.com/deck'}) as render:
+            result = asyncio.run(server.generate_presentation('Phones'))
+            palette = preferences.StyleSettings(**SETTINGS).palette()
+            self.assertEqual(render.call_args.kwargs['palette'], palette)
+            image.assert_called_once_with('Phones', palette)
+            self.assertEqual(result['style_settings'], SETTINGS)
+            with closing(auth.connect()) as db:
+                self.assertEqual(db.execute('select count(*) from temporary_images').fetchone()[0], 0)
         self.assertEqual(preferences.get_style('alice')['settings'], SETTINGS)
 
     def test_image_failure_prevents_deck_creation_and_google_failure_cleans_image(self):
@@ -142,11 +142,19 @@ class PreferenceAndImageTests(unittest.TestCase):
         fake.presentations.return_value.create.return_value.execute.return_value = {'presentationId': 'deck1'}
         fake.presentations.return_value.get.return_value.execute.return_value = {}
         with patch.object(slides, 'build', return_value=fake):
-            result = slides.create_deck(None, OUTLINE, style='custom', palette=preferences.StyleSettings(**SETTINGS).palette(), cover_image_url='https://example.com/image.png')
+            result = slides.create_deck(None, OUTLINE, palette=preferences.StyleSettings(**SETTINGS).palette(), cover_image_url='https://example.com/image.png')
         requests = fake.presentations.return_value.batchUpdate.call_args.kwargs['body']['requests']
         images = [r['createImage'] for r in requests if 'createImage' in r]
         self.assertEqual(len(images), 1)
         self.assertEqual(images[0]['elementProperties']['pageObjectId'], 'mvp_slide_0')
         self.assertEqual(result['total_slide_count'], 2)
+        palette = preferences.StyleSettings(**SETTINGS).palette()
+        background = next(r['updatePageProperties'] for r in requests if 'updatePageProperties' in r)
+        self.assertEqual(background['pageProperties']['pageBackgroundFill']['solidFill']['color']['rgbColor'], slides.rgb(palette['background']))
+        for request in (r['updateTextStyle'] for r in requests if 'updateTextStyle' in r):
+            kind = 'body' if request['objectId'] == 'mvp_body_1' else 'title'
+            self.assertEqual(request['style']['fontFamily'], 'Georgia')
+            self.assertEqual(request['style']['foregroundColor']['opaqueColor']['rgbColor'], slides.rgb(palette[kind]))
+
         titles = [r['insertText'] for r in requests if 'insertText' in r]
         self.assertIn({'objectId': 'mvp_title_0', 'insertionIndex': 0, 'text': 'Phones'}, titles)

@@ -33,7 +33,6 @@ async def generate_presentation(
     basis: Literal["topic", "content"] = "topic",
     source_content: Annotated[str | None, Field(min_length=1, max_length=20000)] = None,
     instructions: Annotated[str | None, Field(max_length=2000)] = None,
-    style: Literal["default", "minimal", "dark", "warm"] = "default",
 ) -> dict[str, Any]:
     """Create 1–6 content slides PLUS a new opening title slide in the authenticated user's Google Drive.
 
@@ -68,11 +67,14 @@ async def generate_presentation(
     than text generation; never claim an image or deck exists before success.
     The cover title is editable; the image cannot be revised through edit_slide.
 
-    style="default" automatically uses this connection's saved colors/font, or
-    Minimal if none are saved. Do not call get_default_style before each generation.
-    Explicit minimal/dark/warm presets override it for this deck only. Use
-    set_default_style only when the user explicitly asks to save future defaults,
-    not when describing one deck. No arbitrary layouts, templates or theme imports.
+    Every deck automatically uses this connection's default colors/font, with
+    built-in default settings when none are saved. No named presets or per-deck
+    style overrides. Do not call get_default_style before each generation.
+    Use set_default_style when the user asks to change their default style.
+    For partial changes, read the current default and preserve unchanged settings.
+    A one-deck style request is unsupported: explain that customization changes
+    future defaults and ask whether they want to update those defaults. Never
+    silently save a one-deck request. No arbitrary layouts, templates or theme imports.
 
     After a successful call, copy presentation_url from the result verbatim into
     the user's clickable link. Never invent a URL, reconstruct the opaque Google
@@ -84,16 +86,13 @@ async def generate_presentation(
     to a slide that does not exist. Offer wording changes only, not layout or
     structural edits. Do not require a response or call editing tools until the
     user requests a revision. Do not add the invitation to the slide content.
-    Mention the applied style from the result beside the link. On the first
-    successful generation in a conversation, briefly mention the other presets
-    as options for FUTURE decks, or mention that colors/font can be saved as a
-    personal default. Keep discovery to one short sentence and avoid repeating it.
+    On the first successful generation in a conversation, briefly mention:
+    'You can also customize your default colors and font for future presentations.'
+    Keep discovery to one short sentence and avoid repeating it.
     Changing an existing deck's style is unsupported; do not offer it as an edit
     or create another deck unless the user requests one. This discovery message
     belongs in chat, not on the slides, and must not require a response.
     """
-    if style not in ("default", *slides.STYLE_PRESETS):
-        raise ToolError("Unknown style. Choose default, minimal, dark, or warm.")
     if basis not in ("topic", "content"):
         raise ToolError('Basis must be "topic" or "content".')
     if basis == "topic":
@@ -108,10 +107,8 @@ async def generate_presentation(
     creds = await connected_credentials()
     subject = connection_subject()
     try:
-        saved = await run_in_threadpool(preferences.get_style, subject) if style == "default" else None
-        applied_style = "custom" if saved and saved["saved"] else ("minimal" if style == "default" else style)
-        palette = (preferences.StyleSettings.model_validate(saved["settings"]).palette()
-                   if applied_style == "custom" else dict(slides.STYLE_PRESETS[applied_style]))
+        saved = await run_in_threadpool(preferences.get_style, subject)
+        palette = preferences.StyleSettings.model_validate(saved["settings"]).palette()
     except Exception:
         raise ToolError("Could not load the saved style. Try again before creating the deck.") from None
     try:
@@ -129,7 +126,8 @@ async def generate_presentation(
         raise ToolError("The title background could not be generated or prepared. No deck was created. Check Mistral image-generation access and try again.") from None
     try:
         result = await run_in_threadpool(slides.create_deck, creds, content,
-            style=applied_style, palette=palette, cover_image_url=image_url)
+            palette=palette, cover_image_url=image_url)
+        result = {**result, "style_settings": saved["settings"]}
         # Correlate the exact returned URL with a reported link without exposing
         # private deck IDs, titles, URLs or Google credentials in Railway logs.
         logger.info("presentation_result url_sha256=%s",
@@ -167,7 +165,7 @@ async def connected_credentials():
 
 
 async def get_default_style() -> dict[str, Any]:
-    """Show saved colors/font and a Markdown summary for this connection, or Minimal.
+    """Show saved colors/font and a Markdown summary for this connection, including built-in defaults.
 
     This is not a filesystem file. Preferences apply to future decks only and do
     not survive reconnecting as a new connection. No need to read before generation.
@@ -182,7 +180,7 @@ async def get_default_style() -> dict[str, Any]:
 async def set_default_style(settings: preferences.StyleSettings) -> dict[str, Any]:
     """Save a complete default style for FUTURE decks on this connection.
 
-    Call only for an explicit request to save defaults. Supported: #RRGGBB
+    Call when the user asks to save or change their default style. Supported: #RRGGBB
     background/title/body colors and Arial, Verdana, Georgia, Trebuchet MS fonts.
     Use get_default_style before a partial change, then send the complete merged
     settings so other choices are preserved. Colors require readable contrast.
@@ -200,7 +198,7 @@ async def set_default_style(settings: preferences.StyleSettings) -> dict[str, An
 
 
 async def reset_default_style() -> dict[str, Any]:
-    """Remove saved defaults only when requested; future decks fall back to Minimal.
+    """Remove saved defaults only when requested; future decks use the built-in default colors/font.
 
     Existing presentations are unchanged. This acts only on the current connection.
     """
@@ -331,9 +329,9 @@ def create_app():
                       "to request wording revisions, with examples suited to the actual deck and user's language. "
                       "Do not ask for mandatory confirmation or start editing without a user request. "
                       "The invitation belongs in chat, not in the presentation. "
-                      "Use saved defaults automatically, falling back to Minimal; explicit presets override for one deck. "
-                      "Mention the applied style and, once per conversation after successful generation, "
-                      "briefly mention presets or saving preferred colors/fonts for future decks. Restyling existing decks is unsupported. "
+                      "Always use the connection default colors/font; there are no named presets or per-deck overrides. "
+                      "Once per conversation after successful generation, "
+                      "briefly offer customizing default colors/fonts for future decks. Restyling existing decks is unsupported. "
                       "Copy presentation_url verbatim from a successful tool result. "
                       "Never fabricate or rewrite presentation IDs or URLs."),
         auth_server_provider=provider,
