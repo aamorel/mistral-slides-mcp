@@ -635,7 +635,8 @@ What to record from Vibe:
 Status:
 - Local no-auth mode passed.
 - Local static bearer mode passed.
-- Deployment update and Vibe bearer-mode test pending.
+- Deployment update completed.
+- Vibe bearer-mode test pending with Connector-side bearer configuration.
 
 Deployed no-auth Vibe result:
 - Vibe successfully called `ping` after the logging/auth deployment.
@@ -650,3 +651,28 @@ Interim decision:
 - In no-auth mode, Vibe does not send a user-level identity or authorization header to the MCP server.
 - No-auth remains viable only for public/demo tools, not for user-scoped Google Drive access.
 - Next auth test should set `CONNECTOR_BEARER_TOKEN` on Railway and configure bearer auth in Vibe, if the Connector UI supports it.
+
+Deployed bearer-gated Vibe result:
+- Railway variable `CONNECTOR_BEARER_TOKEN` was set.
+- Railway redeployed successfully.
+- Logs show `static bearer auth enabled for /mcp`.
+- Vibe called the same `/mcp` endpoint without an `Authorization` header.
+- Server correctly returned `401 Unauthorized`.
+- Vibe surfaced this as:
+
+```text
+Error: Tool call failed: 502 - {"detail":"Upstream MCP server unavailable"}
+```
+
+Observed request metadata:
+- `user_agent: "MistralAI-MCPClient/1.0"`
+- `authorization_present: false`
+- `authorization_scheme: null`
+- `mcp_session_id_present: false`
+- HTTP response: `401 Unauthorized`
+
+Interim decision:
+- The existing `slides_generator_6776` Connector is still configured as no-auth.
+- Vibe does not automatically retry or prompt for bearer auth when the MCP server starts requiring it.
+- A 401 from the upstream MCP server appears to the chat user as a 502/unavailable error.
+- Next test is Connector-side bearer auth configuration: edit or recreate the custom Connector and provide the bearer token in Vibe's auth settings.
