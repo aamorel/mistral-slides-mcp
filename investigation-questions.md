@@ -676,3 +676,14 @@ Interim decision:
 - Vibe does not automatically retry or prompt for bearer auth when the MCP server starts requiring it.
 - A 401 from the upstream MCP server appears to the chat user as a 502/unavailable error.
 - Next test is Connector-side bearer auth configuration: edit or recreate the custom Connector and provide the bearer token in Vibe's auth settings.
+
+Bearer-token troubleshooting update:
+- A direct deployed smoke test using `Authorization: Bearer test-vibe-bearer-2026` also returned `401 Unauthorized`.
+- That means either the Railway `CONNECTOR_BEARER_TOKEN` value did not exactly equal `test-vibe-bearer-2026`, or it included the `Bearer ` prefix while the server expected only the raw token.
+- Server auth was updated to normalize both server-side and client-side values:
+  - `CONNECTOR_BEARER_TOKEN=test-vibe-bearer-2026`
+  - `CONNECTOR_BEARER_TOKEN=Bearer test-vibe-bearer-2026`
+  - `Authorization: Bearer test-vibe-bearer-2026`
+  - `Authorization: test-vibe-bearer-2026`
+- On auth failure, logs now include short SHA-256 fingerprints of expected/provided values, not the raw tokens.
+- Local validation passed with a server env var containing the `Bearer ` prefix and a client header using the standard `Authorization: Bearer ...` format.

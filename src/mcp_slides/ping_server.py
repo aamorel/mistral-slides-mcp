@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import os
+import hashlib
+import hmac
 import json
 import logging
 from typing import Any
@@ -39,7 +41,7 @@ class InvestigationMiddleware:
 
     def __init__(self, app: ASGIApp, bearer_token: str | None) -> None:
         self.app = app
-        self.bearer_token = bearer_token
+        self.bearer_token = self._normalize_bearer_token(bearer_token)
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
@@ -80,8 +82,19 @@ class InvestigationMiddleware:
         )
 
         if self.bearer_token and path.startswith("/mcp"):
-            expected = f"Bearer {self.bearer_token}"
-            if auth_header != expected:
+            provided_token = self._normalize_authorization_header(auth_header)
+            if not provided_token or not hmac.compare_digest(provided_token, self.bearer_token):
+                logger.warning(
+                    "bearer_auth_failed %s",
+                    json.dumps(
+                        {
+                            "provided_present": bool(provided_token),
+                            "provided_fingerprint": self._fingerprint(provided_token),
+                            "expected_fingerprint": self._fingerprint(self.bearer_token),
+                        },
+                        sort_keys=True,
+                    ),
+                )
                 await self._send_json(
                     send,
                     401,
@@ -94,6 +107,27 @@ class InvestigationMiddleware:
                 return
 
         await self.app(scope, receive, send)
+
+    def _normalize_bearer_token(self, value: str | None) -> str | None:
+        if not value:
+            return None
+        normalized = value.strip()
+        if normalized.lower().startswith("bearer "):
+            normalized = normalized.split(" ", 1)[1].strip()
+        return normalized or None
+
+    def _normalize_authorization_header(self, value: str) -> str | None:
+        normalized = value.strip()
+        if not normalized:
+            return None
+        if normalized.lower().startswith("bearer "):
+            return normalized.split(" ", 1)[1].strip() or None
+        return normalized
+
+    def _fingerprint(self, value: str | None) -> str | None:
+        if not value:
+            return None
+        return hashlib.sha256(value.encode("utf-8")).hexdigest()[:12]
 
     async def _send_json(
         self,
