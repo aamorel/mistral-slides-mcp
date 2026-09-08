@@ -139,6 +139,25 @@ Tests mock Google/Mistral and make no external API calls. The protocol test bind
 a temporary localhost port. Real Vibe interoperability and consent from a second
 Google account must also be checked on the deployed version.
 
+## Live validation — 2026-09-08
+
+Registered **Mistral Slides Personal** (`mistral_slides_personal_4365`) through
+Studio's custom connector UI against the deployed `/mcp` endpoint. Studio detected
+OAuth 2.1 and dynamically registered `mistral-mcp-client` without manually entered
+client credentials. Its return URI was
+`https://callback.mistral.ai/v1/integrations_auth/oauth2_callback`.
+
+The live browser flow reached our consent page, Google's account chooser, and
+Google's testing-mode warning for the existing test account. Completion of Google
+consent, return to Vibe, and a real per-user deck creation remain to be verified.
+The previous **mistral-slides-mcp-mvp** connector remains registered with its old
+`None` authentication type; use the personal OAuth connector for this test.
+
+Two browser-only issues were fixed during this test: the consent page uses
+`strict-origin` referrer policy so a form POST retains its origin, and its CSP
+explicitly permits the Google authorization redirect. Origin checks, CSRF
+validation, and browser-bound OAuth state remain enforced.
+
 ## References
 
 - [Mistral: MCP connector authentication](https://docs.mistral.ai/vibe/work/connectors/mcp-connectors)
