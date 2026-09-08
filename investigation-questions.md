@@ -1058,3 +1058,21 @@ Cause:
 Fix:
 - Reconstruct the callback authorization response URL from `PUBLIC_BASE_URL` plus the callback query string.
 - This keeps the URL passed to OAuthlib as `https://mistral-slides-mcp-production.up.railway.app/auth/google/callback?...`.
+
+Second deployed OAuth run result:
+- The HTTPS reconstruction fix worked.
+- Callback then failed during token exchange with:
+
+```text
+oauthlib.oauth2.rfc6749.errors.InvalidGrantError: (invalid_grant) Missing code verifier.
+```
+
+Cause:
+- `google-auth-oauthlib` automatically generates a PKCE `code_verifier` when creating the authorization URL.
+- The deployed callback created a new `Flow` instance and did not restore the original verifier.
+- Google requires the original verifier to exchange the authorization code.
+
+Fix:
+- Store `flow.code_verifier` in the `oauth_states` table with the OAuth `state`.
+- Restore `flow.code_verifier` in `/auth/google/callback` before `fetch_token(...)`.
+- Added a small SQLite migration for existing `oauth_states` tables without the `code_verifier` column.

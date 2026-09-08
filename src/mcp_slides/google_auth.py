@@ -60,10 +60,17 @@ def connect() -> sqlite3.Connection:
         create table if not exists oauth_states (
             state text primary key,
             connection_id text not null,
+            code_verifier text,
             created_at integer not null
         )
         """
     )
+    columns = {
+        row[1]
+        for row in db.execute("pragma table_info(oauth_states)").fetchall()
+    }
+    if "code_verifier" not in columns:
+        db.execute("alter table oauth_states add column code_verifier text")
     db.execute(
         """
         create table if not exists google_tokens (
@@ -113,13 +120,6 @@ async def google_auth_start(request: Request) -> Response:
     redirect_uri = f"{base_url}/auth/google/callback"
     state = uuid.uuid4().hex
 
-    with connect() as db:
-        db.execute(
-            "insert into oauth_states (state, connection_id, created_at) values (?, ?, ?)",
-            (state, connection_id, int(time.time())),
-        )
-        db.commit()
-
     flow = create_flow(redirect_uri)
     authorization_url, _ = flow.authorization_url(
         access_type="offline",
@@ -127,6 +127,16 @@ async def google_auth_start(request: Request) -> Response:
         include_granted_scopes="true",
         state=state,
     )
+    with connect() as db:
+        db.execute(
+            """
+            insert into oauth_states (state, connection_id, code_verifier, created_at)
+            values (?, ?, ?, ?)
+            """,
+            (state, connection_id, flow.code_verifier, int(time.time())),
+        )
+        db.commit()
+
     return RedirectResponse(authorization_url)
 
 
@@ -137,14 +147,15 @@ async def google_auth_callback(request: Request) -> Response:
 
     with connect() as db:
         row = db.execute(
-            "select connection_id, created_at from oauth_states where state = ?",
+            "select connection_id, code_verifier, created_at from oauth_states where state = ?",
             (state,),
         ).fetchone()
         if not row:
             return JSONResponse({"error": "invalid_state"}, status_code=400)
 
         connection_id = row[0]
-        if int(time.time()) - int(row[1]) > 600:
+        code_verifier = row[1]
+        if int(time.time()) - int(row[2]) > 600:
             return JSONResponse({"error": "expired_state"}, status_code=400)
 
         base_url = get_base_url(request)
@@ -155,6 +166,7 @@ async def google_auth_callback(request: Request) -> Response:
             authorization_response = f"{authorization_response}?{query_string}"
 
         flow = create_flow(redirect_uri)
+        flow.code_verifier = code_verifier
         flow.fetch_token(authorization_response=authorization_response)
 
         credentials_json = flow.credentials.to_json()
