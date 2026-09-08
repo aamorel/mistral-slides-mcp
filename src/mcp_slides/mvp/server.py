@@ -25,6 +25,13 @@ from starlette.routing import Route
 from . import auth, outline, slides, editing, preferences, backgrounds, styling
 from .oauth import GoogleOAuthProvider, SCOPE, ResourceTokenHandler
 
+STYLE_GUIDANCE = (
+    "Styling uses this connection's default style sheet (saved colors and font). "
+    "There are no named style presets. Offer customizing the default with "
+    "get_default_style/set_default_style, or applying it to an existing deck with "
+    "apply_default_style. Do not suggest removed presets from earlier conversation context."
+)
+
 async def generate_presentation(
     topic: Annotated[str | None, Field(min_length=1, max_length=1000)] = None,
     slide_count: Annotated[int, Field(ge=1, le=6, strict=True)] = 3,
@@ -94,6 +101,8 @@ async def generate_presentation(
     to a slide that does not exist. Offer wording changes only, not layout or
     structural edits. Do not require a response or call editing tools until the
     user requests a revision. Do not add the invitation to the slide content.
+    Use style_guidance from the result for current styling capabilities, even if
+    older conversation messages describe other options.
     On the first successful generation in a conversation, briefly mention:
     'You can also customize your default colors and font for future presentations.'
     Keep discovery to one short sentence and avoid repeating it.
@@ -135,7 +144,7 @@ async def generate_presentation(
     try:
         result = await run_in_threadpool(slides.create_deck, creds, content,
             palette=palette, cover_image_url=image_url)
-        result = {**result, "style_settings": saved["settings"]}
+        result = {**result, "style_settings": saved["settings"], "style_guidance": STYLE_GUIDANCE}
         # Correlate the exact returned URL with a reported link without exposing
         # private deck IDs, titles, URLs or Google credentials in Railway logs.
         logger.info("presentation_result url_sha256=%s",

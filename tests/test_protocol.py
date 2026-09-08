@@ -20,7 +20,7 @@ from mcp_slides.mvp.oauth import GoogleOAuthProvider, SCOPE
 ENV = {'CONNECTOR_BEARER_TOKEN': 'protocol-secret', 'GOOGLE_CLIENT_ID': 'fake',
        'GOOGLE_CLIENT_SECRET': 'fake', 'PUBLIC_BASE_URL': 'http://127.0.0.1',
        'MISTRAL_API_KEY': 'fake'}
-RESULT = {'presentation_id': 'test123', 'presentation_url': 'https://docs.google.com/presentation/d/test123/edit', 'title': 'Test', 'style_settings': preferences.DEFAULT_STYLE.model_dump()}
+RESULT = {'presentation_id': 'test123', 'presentation_url': 'https://docs.google.com/presentation/d/test123/edit', 'title': 'Test', 'style_settings': preferences.DEFAULT_STYLE.model_dump(), 'style_guidance': server.STYLE_GUIDANCE}
 
 
 class ProtocolTests(unittest.IsolatedAsyncioTestCase):

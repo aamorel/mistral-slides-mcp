@@ -146,8 +146,13 @@ and must be an integer from 1 to 6. Optional audience and tone are limited to 30
 and 200 characters. Each content slide uses a key message, bullets, comparison, or steps layout. A new opening title slide
 with a generated background image is always added: `slide_count=3` means four
 slides total (one cover plus three content slides). The return value contains `presentation_id`, `presentation_url`,
-`title`, the applied `style_settings`, `content_slide_count`, `total_slide_count`, and
+`title`, the applied `style_settings`, current `style_guidance`, `content_slide_count`, `total_slide_count`, and
 `cover_image="generated"`.
+
+Generation results include current styling guidance so the client receives it even
+when tool metadata or earlier chat messages are stale. Refresh connector metadata
+and start a fresh conversation after contract changes; reconnecting authentication
+alone may not refresh tool descriptions. Client wording is still model-generated.
 
 Every new deck uses the connection's default colors and font automatically.
 There is no `style` argument, named preset, or per-deck override. Without saved
