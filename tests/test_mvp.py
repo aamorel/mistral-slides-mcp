@@ -85,7 +85,7 @@ class MVPTests(unittest.TestCase):
         service.presentations.return_value.get.return_value.execute.return_value = {}
         with patch.object(slides, 'build', return_value=service):
             result = slides.create_deck(MagicMock(), OUTLINE)
-            self.assertEqual(result, {'presentation_id': 'deck123', 'presentation_url': 'https://docs.google.com/presentation/d/deck123/edit', 'title': 'Demo'})
+            self.assertEqual(result, {'presentation_id': 'deck123', 'presentation_url': 'https://docs.google.com/presentation/d/deck123/edit', 'title': 'Demo', 'style': 'minimal'})
             requests = service.presentations.return_value.batchUpdate.call_args.kwargs['body']['requests']
             self.assertEqual(sum('createSlide' in r for r in requests), 1)
             service.presentations.return_value.batchUpdate.return_value.execute.side_effect = Exception('private upstream detail')
@@ -132,6 +132,45 @@ class MVPTests(unittest.TestCase):
             db = auth.connect()
             self.assertEqual(json.loads(db.execute('select credentials_json from google_tokens').fetchone()[0]), {'refreshed': True})
             db.close()
+
+    def test_presets_style_existing_boxes_without_changing_content(self):
+        for style in slides.STYLE_PRESETS:
+            with self.subTest(style=style):
+                service = MagicMock()
+                service.presentations.return_value.create.return_value.execute.return_value = {'presentationId': 'deck123'}
+                service.presentations.return_value.get.return_value.execute.return_value = {}
+                with patch.object(slides, 'build', return_value=service):
+                    result = slides.create_deck(MagicMock(), OUTLINE, style=style)
+                self.assertEqual(result['style'], style)
+                requests = service.presentations.return_value.batchUpdate.call_args.kwargs['body']['requests']
+                self.assertEqual([r['createShape']['objectId'] for r in requests if 'createShape' in r],
+                                 ['mvp_title_1', 'mvp_body_1'])
+                self.assertEqual([r['insertText']['text'] for r in requests if 'insertText' in r], ['First', 'A\nB\nC'])
+                background = next(r['updatePageProperties'] for r in requests if 'updatePageProperties' in r)
+                self.assertEqual(background['pageProperties']['pageBackgroundFill']['solidFill']['color']['rgbColor'],
+                                 slides.rgb(slides.STYLE_PRESETS[style]['background']))
+                text_styles = [r['updateTextStyle'] for r in requests if 'updateTextStyle' in r]
+                self.assertEqual(len(text_styles), 2)
+                for request, kind in zip(text_styles, ('title', 'body')):
+                    self.assertEqual(request['style']['foregroundColor']['opaqueColor']['rgbColor'],
+                                     slides.rgb(slides.STYLE_PRESETS[style][kind]))
+
+    def test_unknown_preset_fails_before_creating_a_file(self):
+        with patch.object(slides, 'build') as build:
+            with self.assertRaises(ValueError):
+                slides.create_deck(MagicMock(), OUTLINE, style='unknown')
+            build.assert_not_called()
+
+    def test_preset_text_has_readable_contrast(self):
+        def luminance(color):
+            channels = list(slides.rgb(color).values())
+            linear = [c / 12.92 if c <= .04045 else ((c + .055) / 1.055) ** 2.4 for c in channels]
+            return sum(c * weight for c, weight in zip(linear, (.2126, .7152, .0722)))
+        for name, palette in slides.STYLE_PRESETS.items():
+            for kind in ('title', 'body'):
+                low, high = sorted([luminance(palette['background']), luminance(palette[kind])])
+                self.assertGreaterEqual((high + .05) / (low + .05), 4.5, (name, kind))
+
 
 
 if __name__ == '__main__':

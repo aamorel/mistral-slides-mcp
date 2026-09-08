@@ -20,7 +20,7 @@ from mcp_slides.mvp.oauth import GoogleOAuthProvider, SCOPE
 ENV = {'CONNECTOR_BEARER_TOKEN': 'protocol-secret', 'GOOGLE_CLIENT_ID': 'fake',
        'GOOGLE_CLIENT_SECRET': 'fake', 'PUBLIC_BASE_URL': 'http://127.0.0.1',
        'MISTRAL_API_KEY': 'fake'}
-RESULT = {'presentation_id': 'test123', 'presentation_url': 'https://docs.google.com/presentation/d/test123/edit', 'title': 'Test'}
+RESULT = {'presentation_id': 'test123', 'presentation_url': 'https://docs.google.com/presentation/d/test123/edit', 'title': 'Test', 'style': 'minimal'}
 
 
 class ProtocolTests(unittest.IsolatedAsyncioTestCase):
@@ -56,8 +56,10 @@ class ProtocolTests(unittest.IsolatedAsyncioTestCase):
                         self.assertEqual(schema['properties']['basis']['default'], 'topic')
                         self.assertIn('source_content', schema['properties'])
                         self.assertIn('instructions', schema['properties'])
+                        self.assertEqual(schema['properties']['style']['enum'], ['minimal', 'dark', 'warm'])
+                        self.assertEqual(schema['properties']['style']['default'], 'minimal')
                         for arguments in ({'topic': 'Demo', 'slide_count': 7}, {'topic': '   '}, {'topic': 'Demo', 'slide_count': True},
-                                          {}, {'basis': 'content'},
+                                          {}, {'basis': 'content'}, {'topic': 'Demo', 'style': 'unknown'},
                                           {'basis': 'content', 'source_content': '   '},
                                           {'basis': 'content', 'source_content': 'Notes', 'topic': '   '},
                                           {'topic': 'Demo', 'source_content': 'Notes'},
@@ -80,6 +82,7 @@ class ProtocolTests(unittest.IsolatedAsyncioTestCase):
                         self.assertEqual(json.loads(text_outputs[0])['presentation_url'], RESULT['presentation_url'])
                         credentials.assert_called_with('alice')
                         self.assertEqual(render.call_args.args[0], 'alice')
+                        self.assertEqual(render.call_args.kwargs, {'style': 'minimal'})
                         self.assertEqual(generate.call_args.args[:4], ('Demo', 3, None, None))
                         self.assertEqual(generate.call_args.kwargs,
                                          {'basis': 'topic', 'source_content': None, 'instructions': None})
@@ -96,6 +99,15 @@ class ProtocolTests(unittest.IsolatedAsyncioTestCase):
                                 'basis': 'content', 'source_content': 'Pilot budget is €5,000.',
                                 'instructions': 'Lead with the decision.'})
                             self.assertEqual(render.call_args.args[0], 'alice')
+                        for style in ('dark', 'warm'):
+                            for brief in ({'topic': 'Demo'}, {'basis': 'content', 'source_content': 'Pilot notes'}):
+                                render.return_value = {**RESULT, 'style': style}
+                                result = await client.call_tool('generate_presentation', {**brief, 'style': style})
+                                self.assertFalse(result.is_error)
+                                self.assertEqual(result.structured_content['style'], style)
+                                self.assertEqual(render.call_args.kwargs, {'style': style})
+                                self.assertNotIn('style', generate.call_args.kwargs)
+                        render.return_value = RESULT
                 async with httpx2.AsyncClient(headers={'Authorization': 'Bearer ' + bob.access_token}) as http:
                     async with Client(streamable_http_client(f'http://127.0.0.1:{port}/mcp', http_client=http)) as client:
                         result = await client.call_tool('generate_presentation', {'topic': 'Bob deck'})

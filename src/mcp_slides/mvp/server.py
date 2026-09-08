@@ -33,6 +33,7 @@ async def generate_presentation(
     basis: Literal["topic", "content"] = "topic",
     source_content: Annotated[str | None, Field(min_length=1, max_length=20000)] = None,
     instructions: Annotated[str | None, Field(max_length=2000)] = None,
+    style: Literal["minimal", "dark", "warm"] = "minimal",
 ) -> dict[str, str]:
     """Create 1–6 slides in the authenticated user's Google Drive.
 
@@ -46,6 +47,11 @@ async def generate_presentation(
     ask only if ambiguity would materially change the result. Briefly state the
     chosen approach in chat without requiring an extra confirmation.
 
+    Style presets: minimal (default; white, dark text, blue accent), dark (dark
+    background, light text, teal accent), warm (cream, brown accent). Honor an
+    explicit style request; otherwise use minimal without asking. These are
+    built-in presets, not custom branding, templates, or imported Google themes.
+
     After a successful call, copy presentation_url from the result verbatim into
     the user's clickable link. Never invent a URL, reconstruct the opaque Google
     presentation ID, or add query parameters. Only report a created presentation
@@ -56,7 +62,15 @@ async def generate_presentation(
     to a slide that does not exist. Offer wording changes only, not layout or
     structural edits. Do not require a response or call editing tools until the
     user requests a revision. Do not add the invitation to the slide content.
+    Mention the applied style from the result beside the link. On the first
+    successful generation in a conversation, briefly mention the other presets
+    as options for FUTURE decks. Avoid repeating the list when already explained.
+    Changing an existing deck's style is unsupported; do not offer it as an edit
+    or create another deck unless the user requests one. This discovery message
+    belongs in chat, not on the slides, and must not require a response.
     """
+    if style not in slides.STYLE_PRESETS:
+        raise ToolError("Unknown style. Choose minimal, dark, or warm.")
     if basis not in ("topic", "content"):
         raise ToolError('Basis must be "topic" or "content".')
     if basis == "topic":
@@ -78,7 +92,7 @@ async def generate_presentation(
     except Exception:
         raise ToolError("Mistral could not generate a valid outline. Check the API key or try again.") from None
     try:
-        result = await run_in_threadpool(slides.create_deck, creds, content)
+        result = await run_in_threadpool(slides.create_deck, creds, content, style=style)
         # Correlate the exact returned URL with a reported link without exposing
         # private deck IDs, titles, URLs or Google credentials in Railway logs.
         logger.info("presentation_result url_sha256=%s",
@@ -220,6 +234,9 @@ def create_app():
                       "to request wording revisions, with examples suited to the actual deck and user's language. "
                       "Do not ask for mandatory confirmation or start editing without a user request. "
                       "The invitation belongs in chat, not in the presentation. "
+                      "Use Minimal styling by default without asking; honor explicit Dark or Warm requests. "
+                      "Mention the applied style and, once per conversation after successful generation, "
+                      "briefly introduce the other presets for future decks. Restyling existing decks is unsupported. "
                       "Copy presentation_url verbatim from a successful tool result. "
                       "Never fabricate or rewrite presentation IDs or URLs."),
         auth_server_provider=provider,

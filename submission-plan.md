@@ -4,7 +4,7 @@ Goal: deliver a working deployed connector, a clear repository, and an
 implementation I can explain and maintain confidently.
 
 Keep the current feature scope: generate from a topic or source content, read a
-deck, and revise supported text on one slide. Focus on finishing and validating
+deck, choose a built-in style for new decks, and revise supported text on one slide. Focus on finishing and validating
 these flows rather than adding features.
 
 ## 1. Understand and own the code
@@ -77,6 +77,9 @@ Google and Mistral; these checks exercise the real providers and conversation.
 - [ ] Generate from a topic and open the exact returned link in the correct Drive.
 - [ ] Generate from supplied content and check that facts and uncertainty are preserved.
 - [ ] Confirm the post-generation chat invitation offers relevant wording edits.
+- [ ] Generate with Minimal (default), Dark, and Warm. Check visual fit, contrast,
+  bullets, and wording revisions in each. Confirm style discovery is brief and
+  does not imply that existing decks can be restyled.
 - [ ] Revise one slide; verify the same deck URL and unchanged surrounding slides.
 - [ ] Check that fonts, bullets, positions, and unsupported elements survive the edit.
 - [ ] Manually edit text in Google Slides, then revise it through Vibe; verify the

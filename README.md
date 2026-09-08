@@ -139,8 +139,24 @@ after deploying this change. No additional authorization scopes are needed.
 `slide_count` defaults to 3
 and must be an integer from 1 to 6. Optional audience and tone are limited to 300
 and 200 characters. Each slide has a title and three bullets; there is no extra
-cover slide. The return value contains `presentation_id`, `presentation_url`, and
-`title`.
+cover slide. The return value contains `presentation_id`, `presentation_url`,
+`title`, and the applied `style`.
+
+`style` is optional in both generation modes: `minimal` (default; white with a
+blue accent), `dark` (dark background, light text, teal accent), or `warm` (cream
+with a brown accent). These are built-in renderer presets, not native Google
+themes or uploaded templates. Style goes directly to the renderer, not Mistral.
+All presets share the same text boxes and editing support. Unknown presets are
+rejected before upstream calls. For example: “Create three slides using the Dark
+style.”
+
+The assistant is instructed to use Minimal without asking, honor explicit style
+requests, and mention the applied style beside the returned link. On the first
+successful generation in a conversation, it briefly introduces the other styles
+as options for future decks. This optional discovery message belongs in chat;
+there is no mandatory selection step. Once-per-conversation behavior depends on
+Vibe's context, not persisted server state. Restyling an existing deck is not
+supported, and the assistant must not create a replacement without a user request.
 
 Google access is checked before spending a Mistral request. Invalid model output
 is retried once and validated before deck creation. If population fails after

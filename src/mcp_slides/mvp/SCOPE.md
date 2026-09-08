@@ -5,7 +5,10 @@ The MVP proves that a user can connect the MCP in Vibe, authorize their own Goog
 ## Included
 
 - Per-user Google authorization through the connector, with persisted credentials.
-- Generation: `generate_presentation(topic?, slide_count=3, audience?, tone?, basis="topic", source_content?, instructions?)`.
+- Generation: `generate_presentation(topic?, slide_count=3, audience?, tone?, basis="topic", source_content?, instructions?, style="minimal")`.
+- Three built-in visual presets: Minimal (default), Dark, and Warm. The renderer
+  applies consistent typography and colors to the same editable text boxes.
+  Style selection is optional and applies only when creating a new deck.
 - Reading: `get_presentation(presentation_id)` returns current slide/element IDs,
   text, revision ID, and explicit editability/unsupported reasons. It does not
   flatten slides into the generation schema or interpret visual elements.
@@ -46,7 +49,7 @@ The user has tested the live authorization and generation flow successfully. A b
 ## Deferred
 
 - Public onboarding without adding Google tester emails: see the [OAuth publishing plan](../../../oauth-publishing-plan.md).
-- Richer design, images, templates, and improvements to slide content.
+- Richer layouts, images, user templates, native theme import, and restyling existing decks.
 - Structural or visual editing, arbitrary/richly styled text boxes, speaker notes,
   source-brief persistence, undo, folder selection, and export formats.
 - Broad public-launch readiness, including usage limits and further credential-storage review.
