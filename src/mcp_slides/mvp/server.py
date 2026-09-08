@@ -37,6 +37,18 @@ async def generate_presentation(
 ) -> dict[str, str]:
     """Create 1–6 slides in the authenticated user's Google Drive.
 
+    Act directly when the user asks to create/make/generate a presentation and
+    supplies a topic or source content. A broad topic such as 'phones' is enough:
+    generate a general overview. Example: 'Create a presentation about phones'
+    means call generate_presentation(topic="phones") now, using the defaults
+    (3 slides, topic basis, Minimal style, general professional audience).
+    Do not ask the user to repeat the topic, choose create versus edit, specify
+    optional arguments, approve an outline, or confirm creation. Draft an outline
+    in chat only when the user asks to plan or explore before creating. Ask one
+    concise question only if required topic/source content is missing or the
+    request cannot be fulfilled within the supported limits. Editing applies
+    only when the user requests changes to an existing presentation.
+
     Use basis="topic" to develop a presentation from a required topic.
     Use basis="content" to organize supplied material; source_content is required
     and topic is optional context. Copy relevant notes or conversation content
@@ -44,8 +56,10 @@ async def generate_presentation(
     Content mode preserves supplied claims without adding facts unless instructions
     explicitly request an expansion. Put purpose, emphasis, constraints, and any
     requested expansion in instructions. Infer the basis from the user's intent;
-    ask only if ambiguity would materially change the result. Briefly state the
-    chosen approach in chat without requiring an extra confirmation.
+    missing optional details are not a reason to delay generation. If the user
+    refers to source material that is unavailable, ask for it rather than silently
+    switching to topic mode. Briefly state the chosen approach and call the tool
+    in the same turn, without waiting for confirmation.
 
     Style presets: minimal (default; white, dark text, blue accent), dark (dark
     background, light text, teal accent), warm (cream, brown accent). Honor an
@@ -228,6 +242,11 @@ def create_app():
     provider = GoogleOAuthProvider(base_url)
     mcp = MCPServer(
         "mcp-slides", instructions=("Create Google Slides presentations in the authenticated user's own Google Drive. "
+                      "For a creation request with a topic or source content, call generate_presentation directly. "
+                      "A broad topic such as phones is sufficient. Use 3 slides and Minimal style when unspecified. "
+                      "Do not present a create/edit menu, ask for optional details, repeat a supplied topic, "
+                      "or require an outline approval. Planning is only for users who request planning. "
+                      "Clarify missing required topic/source material or unsupported requirements only. "
                       "Read existing decks with get_presentation before editing one supported slide with edit_slide. "
                       "Acknowledge unsupported operations; never silently substitute deck creation for editing. "
                       "After successful generation, include the deck link and a brief optional invitation "

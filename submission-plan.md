@@ -75,6 +75,10 @@ Refresh Vibe's connector tool definitions after deployment. Automated tests mock
 Google and Mistral; these checks exercise the real providers and conversation.
 
 - [ ] Generate from a topic and open the exact returned link in the correct Drive.
+- [ ] Ask “Create a presentation about phones” with no other details. Confirm
+  immediate generation of three Minimal slides without a create/edit menu or
+  questions about optional inputs. Separately verify an explicit planning request
+  stays in conversation until creation is requested.
 - [ ] Generate from supplied content and check that facts and uncertainty are preserved.
 - [ ] Confirm the post-generation chat invitation offers relevant wording edits.
 - [ ] Generate with Minimal (default), Dark, and Warm. Check visual fit, contrast,

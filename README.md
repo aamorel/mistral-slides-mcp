@@ -132,7 +132,12 @@ These are model instructions, not a factual verification guarantee; validation
 checks the output structure and lengths, not whether every claim is supported.
 
 The tool description guides Vibe to infer the basis from user intent, briefly
-state its approach, and clarify only material ambiguity. Actual conversational
+state its approach, and create immediately when a topic or source text is supplied.
+A broad request such as “Create a presentation about phones” should call generation
+with `topic="phones"`, using three slides and Minimal styling by default. Missing
+optional details should not trigger questions, a create/edit menu, or outline
+approval. Planning is reserved for explicit planning requests; missing required
+source material or unsupported requirements warrant clarification. Actual conversational
 behavior depends on the host model. Refresh the connector's tool definitions
 after deploying this change. No additional authorization scopes are needed.
 
