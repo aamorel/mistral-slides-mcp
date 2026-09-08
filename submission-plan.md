@@ -88,7 +88,10 @@ Google and Mistral; these checks exercise the real providers and conversation.
 - [ ] Confirm the post-generation chat invitation offers relevant wording edits.
 - [ ] Generate with built-in defaults and customized colors/font. Check visual fit,
   contrast, bullets, and wording revisions in each. Confirm style discovery is brief and
-  does not imply that existing decks can be restyled.
+  distinguishes saving defaults from explicitly applying them to an existing deck.
+- [ ] Apply saved defaults to an existing deck. Verify the same URL, updated
+  colors/font and cover band, unchanged text/layout/image, and skipped-slide
+  reporting. Check revision conflicts and readback of actual formatting.
 - [ ] Revise one slide; verify the same deck URL and unchanged surrounding slides.
 - [ ] Check that fonts, bullets, positions, and unsupported elements survive the edit.
 - [ ] Manually edit text in Google Slides, then revise it through Vibe; verify the

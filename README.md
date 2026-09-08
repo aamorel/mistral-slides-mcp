@@ -1,6 +1,6 @@
 # MCP Slides MVP
 
-Six MCP tools create, read, and revise Google Slides presentations and manage saved default styles.
+Seven MCP tools create, read, and revise Google Slides presentations and manage saved default styles.
 Generation uses a topic or supplied content, Mistral drafts the text, and
 **each authenticated user's own Google account** provides access and storage.
 
@@ -163,8 +163,8 @@ mentions customizing default colors and font for future presentations. This
 optional discovery message belongs in chat; there is no mandatory selection step.
 Once-per-conversation behavior depends on the client's context, not persisted
 server state. A request to style only one deck must not silently change saved
-defaults. Restyling an existing deck is unsupported, and the assistant must not
-create a replacement without a user request.
+defaults. Users can explicitly apply their current default to an existing deck
+with `apply_default_style`; the assistant must not create a replacement without a user request.
 
 Google access is checked before spending a Mistral request. Invalid model output
 is retried once and validated before deck creation. If population fails after
@@ -193,7 +193,7 @@ deployment to pick up the verbatim-link guidance.
 
 ## Code and local tests
 
-- `src/mcp_slides/mvp/`: application (`server`, `oauth`, `auth`, `outline`, `slides`, `editing`, `preferences`, `backgrounds`).
+- `src/mcp_slides/mvp/`: application (`server`, `oauth`, `auth`, `outline`, `slides`, `editing`, `styling`, `preferences`, `backgrounds`).
 - `scripts/`, `src/mcp_slides/ping_server.py`, `src/mcp_slides/google_auth.py`:
   preserved investigation code, never imported by the MVP.
 - `tests/`: Google consent/PKCE/refresh/revocation tests through HTTP, credential
@@ -247,12 +247,12 @@ validation, and browser-bound OAuth state remain enforced.
 ## Read and revise an existing slide
 
 The deck workflow uses `generate_presentation`, `get_presentation`, and
-`edit_slide`; three additional tools manage saved styles. Reading is annotated as read-only; editing
+`edit_slide`, and `apply_default_style`; three additional tools manage saved styles. Reading is annotated as read-only; editing
 is explicitly a mutation. The existing Google `drive.file` permission remains
 sufficient for accessible decks. The internal connector scope `slides.generate`
-retains its name for compatibility and covers all six tools; it is not a
+retains its name for compatibility and covers all seven tools; it is not a
 separate read-only permission. The consent page describes creation, reading and
-text revision.
+text revision and applying default colors/font.
 
 `get_presentation` is a separate tool because reading is useful on its own
 ("What's on slide two?") and helps Vibe choose an edit. It provides the current
@@ -386,8 +386,32 @@ Only an explicit request such as “Save these colors as my default for future
 presentations” should save preferences. One-deck requests never change defaults.
 Generation resolves them internally; no preliminary read tool call is needed.
 Preferences survive restarts and token refresh, but a new OAuth connection has a
-new subject. Disconnect/revocation deletes its preferences. Existing decks do not
-change, and saved styles do not support arbitrary layouts or imported templates.
+new subject. Disconnect/revocation deletes its preferences. Saving alone does not
+change existing decks. Saved styles do not support arbitrary layouts or imported templates.
+
+## Apply defaults to an existing deck
+
+`apply_default_style(presentation_id, expected_revision_id)` applies the current
+connection's complete default colors/font at the same Google Slides URL. It does
+not change saved preferences and makes no Mistral call. Example: “Apply my default
+style to the trees presentation.” The assistant first calls `get_presentation`,
+checks each slide's `default_style` support, then passes the returned revision.
+Saving defaults alone never authorizes applying them to existing decks.
+
+Supported original `mvp_slide_N` slides receive background colors and title/body
+colors and fonts. The cover's empty title band is updated too; its existing image
+is preserved, so its colors may differ from the new default. Wording, sizes,
+emphasis, bullets, positions and slide order remain unchanged. Custom slides,
+groups, linked/mixed text, or other unsupported elements cause the entire affected
+slide to be skipped to avoid mismatched background/text contrast. The result lists
+`applied_slide_ids` and `skipped_slides` with reasons; `status=unsupported` means
+nothing was written. `status=applied` acknowledges applying the settings, even if
+some values already matched; it does not claim visual verification.
+
+The server rereads the deck and uses Google's `requiredRevisionId` in one atomic
+batch. Stale revisions cause no write; uncertain writes are not retried. Read the
+deck again to inspect its style metadata before deciding what to do next. No new
+Google scopes, environment variables, or database migrations are required.
 
 ## Automatic title-slide image
 

@@ -48,9 +48,10 @@ class ProtocolTests(unittest.IsolatedAsyncioTestCase):
                     async with Client(streamable_http_client(f'http://127.0.0.1:{port}/mcp', http_client=http)) as client:
                         tools = await client.list_tools()
                         discovered = {t.name: t for t in tools.tools}
-                        self.assertEqual(set(discovered), {'generate_presentation', 'get_presentation', 'edit_slide', 'get_default_style', 'set_default_style', 'reset_default_style'})
+                        self.assertEqual(set(discovered), {'generate_presentation', 'get_presentation', 'edit_slide', 'get_default_style', 'set_default_style', 'reset_default_style', 'apply_default_style'})
                         self.assertTrue(discovered['get_presentation'].annotations.read_only_hint)
                         self.assertFalse(discovered['edit_slide'].annotations.read_only_hint)
+                        self.assertFalse(discovered['apply_default_style'].annotations.read_only_hint)
                         schema = discovered['generate_presentation'].input_schema
                         self.assertEqual(schema['properties']['basis']['enum'], ['topic', 'content'])
                         self.assertEqual(schema['properties']['basis']['default'], 'topic')
@@ -109,6 +110,13 @@ class ProtocolTests(unittest.IsolatedAsyncioTestCase):
                         self.assertFalse(result.is_error)
                         self.assertEqual(result.structured_content['style_settings'], settings)
                         self.assertEqual(render.call_args.kwargs['palette']['font_family'], 'Georgia')
+                        with patch.object(server.styling, 'apply_style', return_value={'status': 'applied'}) as apply:
+                            result = await client.call_tool('apply_default_style', {'presentation_id': 'test123', 'expected_revision_id': 'rev1'})
+                            self.assertFalse(result.is_error)
+                            self.assertEqual(apply.call_args.args[:3], ('alice', 'test123', 'rev1'))
+                            self.assertEqual(apply.call_args.args[3].model_dump(), settings)
+                            for args in ({'presentation_id': 'test123'}, {'presentation_id': 'test123', 'expected_revision_id': ' '}):
+                                self.assertTrue((await client.call_tool('apply_default_style', args)).is_error)
                         result = await client.call_tool('reset_default_style', {})
                         self.assertFalse(result.structured_content['saved'])
                         result = await client.call_tool('generate_presentation', {'topic': 'After reset'})

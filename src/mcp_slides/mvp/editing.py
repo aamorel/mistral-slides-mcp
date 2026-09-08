@@ -11,11 +11,12 @@ from googleapiclient.errors import HttpError
 from mistralai.client import Mistral
 
 from .outline import DEFAULT_MODEL
+from .styling import style_capability
 
 LIMITATIONS = [
-    "Text only; no visual preview, layout assessment, notes, or master/layout content.",
+    "Text and style metadata only; no visual preview, layout assessment, notes, or master/layout content.",
     "Only original mvp_title_N and mvp_body_N ungrouped text boxes can be edited.",
-    "Keep paragraph count; no adding, deleting, moving slides or changing formatting.",
+    "edit_slide preserves paragraph count and formatting; apply_default_style separately applies default colors/font to supported slides.",
     "Images, charts, tables, groups, and mixed-style text are not editable.",
     "Original sources and generation instructions are not stored; supply needed context again.",
 ]
@@ -109,6 +110,7 @@ def read_deck(creds: Any, presentation_id: str) -> tuple[Any, dict, dict]:
         "title": raw.get("title", ""), "revision_id": raw.get("revisionId"),
         "limitations": LIMITATIONS,
         "slides": [{"slide_id": page["objectId"], "position": index,
+                    "default_style": style_capability(page),
                     "elements": [normalize_element(e) for e in page.get("pageElements", [])]}
                    for index, page in enumerate(raw.get("slides", []), 1)],
     }

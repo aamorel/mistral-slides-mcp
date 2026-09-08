@@ -21,7 +21,9 @@ The presentation should appear in **your Google Drive**. Open the returned link�
 
 For a different look, ask: “Change my default background to cream and my font to
 Georgia.” The assistant preserves your other settings. Changes apply to future
-presentations; changing an existing deck's style and custom templates are not supported.
+presentations. To update an existing deck too, ask: “Apply my default style to
+the trees presentation.” It keeps the same link, wording, layout, and cover image.
+Unsupported slides are skipped and reported. Custom templates are not supported.
 
 After creating a deck, try: “Make slide two less technical.” The connector can
 revise supported text at the same link; it cannot rearrange slides or edit images.
@@ -35,4 +37,5 @@ To personalize future decks, ask: “Save cream backgrounds, dark blue titles,
 charcoal body text, and Georgia as my default style.” You can also ask “What is
 my saved style?” or “Reset my default style.” Supported fonts: Arial, Verdana,
 Georgia, and Trebuchet MS. Colors must remain readable. Settings apply to this
-connection and future decks only; reconnecting starts a new preference scope.
+connection and apply automatically to future decks; updating an existing deck
+requires a separate request. Reconnecting starts a new preference scope.
