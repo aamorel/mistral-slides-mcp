@@ -23,7 +23,7 @@ and numbered steps to suit your material. You can ask for a specific structure:
 You can revise wording in each layout; adding/removing bullets or steps and
 converting an existing slide to another layout are not supported yet.
 
-New slides use a simple visual treatment: short title underlines, light grey
+New slides use a simple visual treatment: fine full-width header separators, light grey
 dividers between comparison columns, and a subtle side rule for key messages.
 These details are built in; style settings control the colors and font. Existing
 slides keep their layout when you change their style.

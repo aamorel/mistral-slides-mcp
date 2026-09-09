@@ -37,7 +37,7 @@ class GradientTests(unittest.TestCase):
             self.assertEqual(image.size, (1600, 900))
             self.assertEqual(image.getpixel((0, 0)), (255, 255, 255))
             self.assertEqual(image.getpixel((1599, 899)), (255, 255, 255))
-            self.assertEqual(image.getpixel((1599, 0)), (242, 246, 252))
+            self.assertEqual(image.getpixel((1599, 0)), (225, 234, 249))
             allowed = {tuple(bytes.fromhex(c[1:])) for c in preferences.gradient_colors('#FFFFFF', '#93B4E8')}
             self.assertTrue(set(image.getdata()).issubset(allowed))
 

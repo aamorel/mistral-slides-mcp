@@ -478,7 +478,7 @@ Georgia, and Trebuchet MS. Colors must be six-digit hex values; title and body
 text each need at least 4.5:1 contrast across the entire background gradient. Unsupported fields
 and unreadable combinations are rejected. The server merges partial requests with the saved settings and validates the complete result before saving.
 
-Content slides use a deterministic PNG corner gradient at a fixed 12% maximum
+Content slides use a deterministic PNG corner gradient at a fixed 28% maximum
 tint, generated locally without a model call. `gradient` defaults to `true` and
 `gradient_color` to `#93B4E8`, including for saved settings from older versions.
 Set `gradient=false` to remove it from a deck or disable it for future decks.

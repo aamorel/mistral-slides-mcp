@@ -2,7 +2,7 @@
 import re
 
 
-DECORATION_COLOR = 'D1D5DB'
+DECORATION_COLOR = 'D8DEE7'
 
 
 def is_decoration(element, suffix):
@@ -20,12 +20,14 @@ def is_decoration(element, suffix):
 def decoration_boxes(kind):
     """Fixed visual accents, independent of the user-configurable palette."""
     if kind == 'cover':
-        return [('title_rule', (40, 384, 48, 3))]
-    boxes = [('title_rule', (40, 114, 48, 3))]
+        return []
+    # Align with the text's default 3.6 pt inset. A fine full-width rule
+    # separates the header from content without looking like a stray dash.
+    boxes = [('title_rule', (44, 114, 632, .75))]
     if kind == 'comparison':
-        boxes.append(('column_rule', (359, 132, 2, 237)))
+        boxes.append(('column_rule', (359.5, 132, 1, 237)))
     elif kind == 'key_message':
-        boxes.append(('message_rule', (40, 148, 3, 202)))
+        boxes.append(('message_rule', (40, 148, 1, 202)))
     return boxes
 
 

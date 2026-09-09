@@ -19,10 +19,13 @@ def validate_contrast(background: str, foreground: str):
 
 
 def gradient_colors(background, accent):
-    """All quantized stops in our fixed, gentle 12% corner tint."""
+    """All quantized stops in our fixed, soft 28% corner tint.
+
+    This also covers every color in the older, fainter 12% gradient.
+    """
     base = tuple(int(background[i:i+2], 16) for i in (1, 3, 5))
     tint = tuple(int(accent[i:i+2], 16) for i in (1, 3, 5))
-    return ['#' + ''.join(f'{round(a + (b-a) * .12 * n / 255):02X}'
+    return ['#' + ''.join(f'{round(a + (b-a) * .28 * n / 255):02X}'
                          for a, b in zip(base, tint)) for n in range(256)]
 
 

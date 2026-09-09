@@ -15,8 +15,8 @@ def render(background, accent):
     stops = [bytes.fromhex(color[1:]) for color in gradient_colors(background, accent)]
     width, height = 1600, 900
     # A broad soft tint in the upper right, fading to the base at other edges.
-    x_weights = [(x / (width - 1)) ** 2 for x in range(width)]
-    data = b''.join(b''.join(stops[round(255 * weight * (1 - y / (height - 1)) ** 2)]
+    x_weights = [x / (width - 1) for x in range(width)]
+    data = b''.join(b''.join(stops[round(255 * weight * (1 - y / (height - 1)))]
                              for weight in x_weights) for y in range(height))
     output = BytesIO()
     Image.frombytes('RGB', (width, height), data).save(output, format='PNG')
@@ -54,7 +54,7 @@ def inspect(element, suffix):
             return None
         source_url = element['image'].get('sourceUrl', '')
         query = parse_qs(urlsplit(source_url).query)
-        if query.get('gradient_v') != ['1']:
+        if query.get('gradient_v') not in (['1'], ['2']):
             return None
         base, accent = query['base'][0], query['accent'][0]
         if not all(re.fullmatch(r'[0-9A-Fa-f]{6}', c) for c in (base, accent)):
@@ -81,7 +81,7 @@ def requests(index, background, accent, url):
     # the rendering settings without putting machine metadata into accessible alt text.
     parts = urlsplit(url)
     query = parse_qs(parts.query)
-    query.update(gradient_v=['1'], base=[background[1:]], accent=[accent[1:]])
+    query.update(gradient_v=['2'], base=[background[1:]], accent=[accent[1:]])
     url = urlunsplit(parts._replace(query=urlencode(query, doseq=True)))
     return [
         {'createImage': {'objectId': object_id, 'url': url, 'elementProperties': {

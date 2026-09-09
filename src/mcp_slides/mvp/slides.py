@@ -93,6 +93,11 @@ def content_slide_requests(slide: dict, index: int, palette: dict, *, insertion_
         color = color_role(object_id)
         requests.extend([
             create_text_box_request(object_id, slide_id, *geometry),
+            {'updateShapeProperties': {'objectId': object_id,
+                'shapeProperties': {'outline': {'propertyState': 'NOT_RENDERED'},
+                    'shapeBackgroundFill': {'propertyState': 'NOT_RENDERED'},
+                    'contentAlignment': 'MIDDLE' if role == 'title' else 'TOP'},
+                'fields': 'outline,shapeBackgroundFill,contentAlignment'}},
             insert_text_request(object_id, text),
             {"updateTextStyle": {"objectId": object_id, "textRange": {"type": "ALL"},
                 "style": {"fontSize": {"magnitude": size, "unit": "PT"},
