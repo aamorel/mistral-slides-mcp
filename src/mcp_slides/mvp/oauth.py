@@ -22,7 +22,7 @@ from mcp.shared.auth import OAuthClientInformationFull, OAuthToken
 from starlette.concurrency import run_in_threadpool
 from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse
 
-from . import auth
+from . import auth, pages
 
 SCOPE = "slides.generate"
 FLOW_TTL = 600
@@ -109,23 +109,10 @@ class GoogleOAuthProvider(OAuthAuthorizationServerProvider[AuthorizationCode, Re
         if not pending:
             return failure()
         csrf = request.cookies.get(COOKIE) or secrets.token_urlsafe(32)
-        callback = escape(pending['params']['redirect_uri'])
-        name = escape(pending['client_name'])
         # Explicit per-client consent is required for a dynamically registered
         # OAuth client using our static upstream Google client.
-        response = HTMLResponse(f'''<!doctype html><html lang="en"><meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1"><title>Connect Google Slides</title>
-<style>body{{font:18px/1.5 system-ui;max-width:620px;margin:10vh auto;padding:24px;color:#18202a}}button{{font:inherit;padding:12px 20px;cursor:pointer}}small{{overflow-wrap:anywhere}}</style>
-<h1>Connect your Google account</h1>
-<p><strong>{name}</strong> is requesting permission to create and read presentations, revise supported text, add content slides, and change presentation colors and fonts in your Google Drive through MCP Slides.</p>
-<p>This client-only pilot accepts approved company accounts and invited personal testers.</p>
-<p>You will choose your Google account next. Google credentials stay on this server; the connector receives its own access token.</p>
-<p><small>Return address: {callback}</small></p>
-<form method="post" action="/auth/google/start">
-<input type="hidden" name="request" value="{escape(ticket)}">
-<input type="hidden" name="csrf" value="{escape(csrf)}">
-<button type="submit">Continue with Google</button></form>
-<p>You can close this page to cancel.</p></html>''', headers={**SAFE_HEADERS, "Referrer-Policy": "strict-origin"})
+        response = pages.connection(pending['client_name'], pending['params']['redirect_uri'], ticket, csrf)
+        response.headers.update({**SAFE_HEADERS, "Referrer-Policy": "strict-origin"})
         # no-referrer turns a browser form POST's Origin into 'null'. Send only
         # the origin (never the authorization ticket) while preserving CSRF checks.
         response.set_cookie(COOKIE, csrf, max_age=FLOW_TTL, secure=self.base_url.startswith('https://'), httponly=True, samesite='lax')

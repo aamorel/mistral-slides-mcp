@@ -1,4 +1,6 @@
 """Small public information pages for the connector's Google OAuth branding."""
+from html import escape
+
 from starlette.responses import HTMLResponse
 
 SUPPORT = "aurelien.morel.arthur@gmail.com"
@@ -24,6 +26,22 @@ h1 {{ font-size: clamp(32px, 7vw, 48px); line-height: 1.15; letter-spacing: -1px
 h2 {{ font-size: 21px; line-height: 1.35; margin-top: 32px; }}
 p, ul {{ margin: 0 0 20px; }}
 .tag {{ color: #536459; font-size: 13px; text-transform: uppercase; letter-spacing: 2px; }}
+.connect {{ background: #fff; border: 1px solid #dce3db; border-radius: 24px; padding: clamp(24px, 5vw, 44px); box-shadow: 0 12px 40px #25312b08; }}
+.connect h1 {{ font-size: clamp(30px, 6vw, 40px); letter-spacing: -1px; }}
+.connect .intro {{ color: #536459; }}
+.permissions {{ list-style: none; padding: 0; margin: 28px 0; }}
+.permissions li {{ display: flex; gap: 14px; margin: 20px 0; }}
+.check {{ color: #285a41; background: #edf4ed; border-radius: 50%; width: 26px; height: 26px; flex: 0 0 26px; text-align: center; font-size: 15px; }}
+.permissions strong {{ display: block; font-size: 16px; }}
+.permissions p {{ font-size: 14px; color: #536459; margin: 2px 0 0; }}
+.connect button {{ display: block; width: 100%; border: 0; border-radius: 12px; padding: 16px 20px; background: #285a41; color: #fff; font: 600 16px/1.4 system-ui, sans-serif; cursor: pointer; }}
+.connect button:hover {{ background: #1d4631; }}
+.connect button:focus-visible, summary:focus-visible {{ outline: 3px solid #285a41; outline-offset: 4px; }}
+.connect .note {{ text-align: center; font-size: 13px; color: #536459; margin: 12px 0 0; }}
+.connection-details {{ border-top: 1px solid #e4e9e3; padding-top: 20px; margin-top: 28px; font-size: 13px; color: #536459; }}
+.connection-details summary {{ cursor: pointer; font-weight: 600; }}
+.connection-details p {{ margin: 12px 0 0; overflow-wrap: anywhere; }}
+.client-name {{ overflow-wrap: anywhere; }}
 footer {{ border-top: 1px solid #d8dfd8; margin-top: 48px; padding-top: 24px; }}
 </style>
 </head>
@@ -110,4 +128,35 @@ in Google Drive. Data retained by Google, Mistral, or Vibe is subject to their
 respective controls and policies.</p>
 <h2>Changes</h2>
 <p>We will update this page if the service's data practices change.</p>
+''')
+
+
+def connection(client_name: str, callback: str, ticket: str, csrf: str) -> HTMLResponse:
+    return page("Connect your Google account", f'''
+<section class="connect" aria-labelledby="connect-title">
+<p class="tag">Connect to MCP Slides</p>
+<h1 id="connect-title">Your next presentation<br>starts here.</h1>
+<p class="intro"><strong class="client-name">{escape(client_name)}</strong> is requesting access
+through MCP Slides to create and work on presentations in your Google Drive.</p>
+<ul class="permissions">
+<li><span class="check" aria-hidden="true">✓</span><div><strong>Create and refine slides</strong>
+<p>Generate a deck, read its content, revise text, add slides, and adjust colors and fonts.</p></div></li>
+<li><span class="check" aria-hidden="true">✓</span><div><strong>Your files stay in your Google account</strong>
+<p>Access is limited to files this app creates or that you explicitly make available to it.</p></div></li>
+<li><span class="check" aria-hidden="true">✓</span><div><strong>Choose your account next</strong>
+<p>Use your approved company Google account or an invited personal account.</p></div></li>
+</ul>
+<form method="post" action="/auth/google/start">
+<input type="hidden" name="request" value="{escape(ticket, quote=True)}">
+<input type="hidden" name="csrf" value="{escape(csrf, quote=True)}">
+<button type="submit">Continue with Google <span aria-hidden="true">→</span></button>
+</form>
+<p class="note">Google will ask you to review permissions. Close this page to cancel.</p>
+<details class="connection-details">
+<summary>Connection details</summary>
+<p>Google credentials stay on the MCP Slides server; the requesting connector receives its own access token.
+Relevant content is sent to Mistral to generate or revise slides. See our <a href="/privacy">privacy policy</a>.</p>
+<p>Return address: {escape(callback)}</p>
+</details>
+</section>
 ''')
