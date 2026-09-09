@@ -10,6 +10,7 @@ MCP URL: https://mistral-slides-mcp-production.up.railway.app/mcp
 ## Documentation
 
 - [User guide](USER-README.md): connect and try example requests.
+- [Authentication reference](AUTH.md): frozen flow, access policy, tokens and operation.
 - [Current MVP scope](src/mcp_slides/mvp/SCOPE.md): supported tools and limits.
 - [Submission checklist](submission-plan.md): remaining acceptance and handoff work.
 - [OAuth publishing plan](oauth-publishing-plan.md): client-only access and rollout.
@@ -93,48 +94,13 @@ before increasing it. See [operation and rollout](google-oauth-rollout.md).
 
 ## Authentication design
 
-```text
-Vibe -> /mcp -> 401 + OAuth discovery metadata
-Vibe -> /register -> client registration
-Vibe -> /authorize -> per-client consent page -> Google consent
-Google -> /auth/google/callback -> connector authorization code -> Vibe
-Vibe -> /token with PKCE verifier -> personal access/refresh tokens
-Vibe -> /mcp with personal token -> that connection's Google credentials
-```
+Authentication is frozen for the pilot. Vibe receives connector tokens; the
+server keeps separate Google credentials for each authorized connection and
+checks the configured company domain or personal exceptions.
 
-The MCP SDK implements discovery, registration, client authentication, redirect
-validation, PKCE verification, and the OAuth token/revocation endpoints. Our
-provider handles Google consent and durable token storage. A connection gets an
-opaque, server-generated subject; all users of one Vibe client still get separate
-subjects. Reconnecting creates a fresh connection. Google identity scopes support
-the client-only admission policy: the server validates the signed ID token and
-nonce, then checks its `hd` claim or a verified exact email exception. The stable
-Google `sub` and minimal admission claims are stored alongside each connection.
-Google tokens are never forwarded to Vibe.
-
-- Explicit consent for the requesting client precedes Google OAuth.
-- Google state is browser-bound, single-use, and expires after 10 minutes.
-- Access checks and token renewal enforce the current configured admission policy.
-  Restart after changing allowlists to purge excluded connections and credentials.
-- Empty admission settings deny everyone. Domain checks use verified `hd`, never
-  an email suffix or account-picker hint.
-- Both OAuth legs use S256 PKCE; connector codes expire after 60 seconds.
-- Access tokens expire after one hour. Refresh tokens expire after 30 days of
-  inactivity and rotate on use; replay revokes that connection's token family.
-- Connector access/refresh tokens and authorization codes are stored by hash.
-- Tokens are restricted to this server's MCP resource and `slides.generate` scope.
-- `/revoke` disconnects only the relevant Google connection and its connector
-  tokens. Revoking Google access also disables that connection when detected;
-  the tool explains that the user must reconnect in Vibe. Later requests get 401
-  to trigger normal connector authentication again.
-- Safe HTTP logs contain fixed route labels, response status and auth outcomes,
-  never raw tokens, fingerprints, callback query strings, or request bodies.
-
-Google credentials and OAuth client secrets remain plaintext in the private
-SQLite volume, matching the MVP storage tradeoff. Encryption at rest, abuse
-limits, and administration/cleanup of inactive connections are future hardening
-work. Mistral usage is charged to the server owner's configured API key even
-though decks belong to the individual users.
+See [AUTH.md](AUTH.md) for the complete flow, security controls, token lifecycle,
+storage tradeoffs, and troubleshooting. Use [the rollout checklist](google-oauth-rollout.md)
+for Google Console and Railway configuration.
 
 ## Tool contract
 

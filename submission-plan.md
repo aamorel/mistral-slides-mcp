@@ -15,6 +15,10 @@ Adding/removing items and converting existing layouts remain deferred.
 Documentation synchronized on 2026-09-09. Local automated validation: 77 tests
 passed. Unchecked live, publishing and ownership tasks below remain pending.
 
+Auth and the connection UI are frozen for the pilot; [AUTH.md](AUTH.md) is the
+implementation reference. Configuration, acceptance, and removal of the friend
+exception remain release tasks.
+
 ## 1. Understand and own the code
 
 - [ ] Trace generation: `server.py` → `outline.py` → `layouts.py` / `slides.py`.

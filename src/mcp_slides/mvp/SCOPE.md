@@ -134,6 +134,10 @@ being asked.
 
 ## Validation and release constraints
 
+Authentication and the connection UI are frozen for the pilot as of 2026-09-09.
+[AUTH.md](../../../AUTH.md) defines the accepted behavior; remaining work is
+configuration, release checks, and bug fixes, not auth feature expansion.
+
 - Automated validation on 2026-09-09: all 77 tests passed, covering schemas, API request construction,
   MCP discovery/invocation, authentication isolation, preferences, supported edits,
   partial style updates, URL normalization, and revision/error handling.

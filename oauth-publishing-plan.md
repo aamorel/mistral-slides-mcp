@@ -1,5 +1,8 @@
 # Plan: client-only OAuth pilot
 
+The implemented auth flow and connection UI are now frozen; see [AUTH.md](AUTH.md).
+This document retains the rollout checklist and original implementation plan.
+
 Status: access policy and usage controls implemented locally; deployment and
 live acceptance pending. No Google Console or Railway changes were made. Follow
 [the Google Console rollout checklist](google-oauth-rollout.md) for the handoff.
