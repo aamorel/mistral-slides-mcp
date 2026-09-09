@@ -8,6 +8,7 @@ from typing import Any
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from mistralai.client import Mistral
+from . import usage
 
 from .outline import DEFAULT_MODEL
 from .layouts import text_role, edit_limit, text_budget, is_decoration
@@ -188,7 +189,7 @@ def propose_edit(slide: dict, targets: dict, instructions: str, source_content: 
         "instructions": instructions, "source_content": source_content}, ensure_ascii=False)}]
     with Mistral(api_key=os.environ["MISTRAL_API_KEY"], timeout_ms=60000) as client:
         for attempt in range(2):
-            response = client.chat.complete(model=os.getenv("MISTRAL_MODEL", DEFAULT_MODEL),
+            response = usage.paid_call(client.chat.complete, model=os.getenv("MISTRAL_MODEL", DEFAULT_MODEL),
                 messages=messages, temperature=0.2, response_format={"type": "json_object"})
             try:
                 return validate_edit(json.loads(response.choices[0].message.content), targets)

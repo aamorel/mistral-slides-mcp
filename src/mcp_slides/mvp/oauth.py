@@ -118,6 +118,7 @@ class GoogleOAuthProvider(OAuthAuthorizationServerProvider[AuthorizationCode, Re
 <style>body{{font:18px/1.5 system-ui;max-width:620px;margin:10vh auto;padding:24px;color:#18202a}}button{{font:inherit;padding:12px 20px;cursor:pointer}}small{{overflow-wrap:anywhere}}</style>
 <h1>Connect your Google account</h1>
 <p><strong>{name}</strong> is requesting permission to create and read presentations, revise supported text, add content slides, and change presentation colors and fonts in your Google Drive through MCP Slides.</p>
+<p>This client-only pilot accepts approved company accounts and invited personal testers.</p>
 <p>You will choose your Google account next. Google credentials stay on this server; the connector receives its own access token.</p>
 <p><small>Return address: {callback}</small></p>
 <form method="post" action="/auth/google/start">
@@ -150,9 +151,10 @@ class GoogleOAuthProvider(OAuthAuthorizationServerProvider[AuthorizationCode, Re
             delete(db, 'pending', digest(ticket))
             flow = auth.create_flow(self.callback_url)
             state = secrets.token_urlsafe(32)
-            url, _ = flow.authorization_url(access_type='offline', prompt='consent select_account', state=state)
+            nonce = secrets.token_urlsafe(32)
+            url, _ = flow.authorization_url(access_type='offline', prompt='consent select_account', state=state, nonce=nonce)
             put(db, 'google_state', digest(state), {
-                **pending, 'browser': digest(cookie), 'verifier': flow.code_verifier,
+                **pending, 'browser': digest(cookie), 'verifier': flow.code_verifier, 'nonce': nonce,
             }, pending['expires'])
             db.commit()
         return RedirectResponse(url, status_code=303, headers=SAFE_HEADERS)
@@ -180,6 +182,9 @@ class GoogleOAuthProvider(OAuthAuthorizationServerProvider[AuthorizationCode, Re
             creds = flow.credentials
             if not creds.refresh_token or not creds.has_scopes([auth.DRIVE_FILE_SCOPE]):
                 return failure('Google did not grant persistent Slides access. Reconnect in Vibe and approve the requested access.')
+            identity = auth.verify_identity(creds.id_token, pending.get('nonce', ''))
+            if not auth.allowed_identity(identity):
+                return failure('This client-only pilot is available to approved company accounts and invited personal testers.', reason='account_not_allowed')
         except Exception:
             return failure('Google authorization failed. Reconnect in Vibe and try again.')
         # A subject identifies this consented connection, not a caller-supplied
@@ -192,6 +197,7 @@ class GoogleOAuthProvider(OAuthAuthorizationServerProvider[AuthorizationCode, Re
         )
         with closing(auth.connect()) as db:
             auth.save_credentials(db, subject, creds)
+            auth.save_identity(db, subject, identity)
             put(db, 'code', digest(code), authorization.model_dump(mode='json', exclude={'code'}),
                 int(authorization.expires_at), subject)
             db.commit()
@@ -206,6 +212,8 @@ class GoogleOAuthProvider(OAuthAuthorizationServerProvider[AuthorizationCode, Re
         return AuthorizationCode(code=authorization_code, **value)
 
     def issue_tokens(self, db, client_id, subject, scopes, with_refresh=True):
+        if not auth.connection_allowed(db, subject):
+            raise TokenError('invalid_grant', 'Reconnect with an approved Google account.')
         now = int(time.time())
         access = secrets.token_urlsafe(32)
         refresh = secrets.token_urlsafe(32) if with_refresh else None
@@ -231,7 +239,7 @@ class GoogleOAuthProvider(OAuthAuthorizationServerProvider[AuthorizationCode, Re
     async def load_access_token(self, token):
         with closing(auth.connect()) as db:
             value = get(db, 'access', digest(token))
-            if value and not db.execute('select 1 from google_tokens where connection_id=?', (value['subject'],)).fetchone():
+            if value and not auth.connection_allowed(db, value['subject']):
                 return None
         return AccessToken(token=token, claims={'iss': self.base_url}, **value) if value else None
 
@@ -243,6 +251,8 @@ class GoogleOAuthProvider(OAuthAuthorizationServerProvider[AuthorizationCode, Re
                 db.commit()
                 return None
             value = get(db, 'refresh', digest(refresh_token))
+            if value and not auth.connection_allowed(db, value['subject']):
+                return None
         if not value or value['client_id'] != client.client_id:
             return None
         return RefreshToken(token=refresh_token, **value)

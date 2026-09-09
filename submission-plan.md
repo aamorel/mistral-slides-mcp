@@ -12,7 +12,7 @@ After acceptance testing these flows, freeze new features and focus on correctne
 visual fit, deployment, OAuth publishing, repository cleanup, and code ownership.
 Adding/removing items and converting existing layouts remain deferred.
 
-Documentation synchronized on 2026-09-09. Local automated validation: 61 tests
+Documentation synchronized on 2026-09-09. Local automated validation: 77 tests
 passed. Unchecked live, publishing and ownership tasks below remain pending.
 
 ## 1. Understand and own the code
@@ -68,18 +68,27 @@ passed. Unchecked live, publishing and ownership tasks below remain pending.
 
 Follow [the OAuth publishing plan](oauth-publishing-plan.md) for detailed steps.
 
-- [ ] Confirm the configured Google scope matches the code: only `drive.file`.
+- [ ] Implement and deploy the client-domain gate, owner exception, temporary
+  friend exception, and global usage controls before publishing.
+- [ ] Confirm Google scopes match the planned code: `openid`, `email`, and
+  `drive.file`; validate Google identity claims on the server.
 - [ ] Review Audience, Branding, and Verification Center requirements, then
   publish the external OAuth app when ready.
-- [ ] Connect through Vibe with a Google account that was never a test user.
+- [ ] Connect through Vibe with an allowed client account that was never a test
+  user; confirm unrelated accounts are denied.
 - [ ] Verify that the created deck belongs to that account and its returned link opens.
 - [ ] Verify reconnecting and credential refresh; reconnect older testing grants
   where necessary.
 - [ ] Update user-facing tester instructions only after the new onboarding flow
   is confirmed. Describe any remaining prompts accurately.
 
-Publishing is the preferred handoff. If it is blocked, explicitly arrange reviewer
-test accounts and document that limitation; do not present onboarding as unrestricted.
+- [ ] Remove the friend's exception and revoke existing access before submission;
+  verify owner and client retain access. Owner email confirmed as
+  `aurelien.morel.arthur@gmail.com`.
+
+Publishing with server-enforced client-only access is the preferred handoff. If
+blocked, arrange reviewer test accounts and document the limitation; do not
+present onboarding as unrestricted.
 
 ## 5. Run the final deployed acceptance pass
 

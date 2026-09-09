@@ -10,6 +10,7 @@ import time
 from contextlib import closing
 
 from mistralai.client import Mistral
+from . import usage
 from . import auth
 from .outline import DEFAULT_MODEL
 
@@ -20,7 +21,7 @@ TTL = 600
 def generate_image(title, palette):
     # Only the title and palette are needed, not the user's full source document.
     with Mistral(api_key=os.environ['MISTRAL_API_KEY'], timeout_ms=120000) as client:
-        response = client.beta.conversations.start(
+        response = usage.paid_call(client.beta.conversations.start,
             model=os.getenv('MISTRAL_IMAGE_MODEL', DEFAULT_MODEL), store=False,
             tools=[{'type': 'image_generation'}],
             instructions='Generate exactly one landscape 16:9 background image using image_generation. '

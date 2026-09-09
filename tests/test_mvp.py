@@ -18,6 +18,15 @@ ENV = {"CONNECTOR_BEARER_TOKEN": "test-secret", "GOOGLE_CLIENT_ID": "test-client
 
 
 class MVPTests(unittest.TestCase):
+    def setUp(self):
+        temp = tempfile.TemporaryDirectory()
+        env = patch.dict(os.environ, {'TOKEN_DB_PATH': str(Path(temp.name) / 'tokens.db'),
+            'PILOT_MAX_PAID_CALLS': '100', 'PILOT_PAID_CALLS_ENABLED': 'true',
+            'GOOGLE_ALLOWED_DOMAIN': 'example.com', 'GOOGLE_ALLOWED_EMAILS': ''})
+        env.start()
+        self.addCleanup(temp.cleanup)
+        self.addCleanup(env.stop)
+
     def test_missing_config_fails_closed(self):
         with patch.dict(os.environ, {}, clear=True):
             with self.assertRaises(RuntimeError):
@@ -122,6 +131,7 @@ class MVPTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {'TOKEN_DB_PATH': str(Path(temp) / 'tokens.db')}):
             db = auth.connect()
             db.execute("insert into google_tokens values ('user-a', '{}', 1)")
+            auth.save_identity(db, 'user-a', {'sub': 'user-a', 'hd': 'example.com'})
             db.commit()
             db.close()
             creds = MagicMock(valid=False)

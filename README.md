@@ -12,12 +12,13 @@ MCP URL: https://mistral-slides-mcp-production.up.railway.app/mcp
 - [User guide](USER-README.md): connect and try example requests.
 - [Current MVP scope](src/mcp_slides/mvp/SCOPE.md): supported tools and limits.
 - [Submission checklist](submission-plan.md): remaining acceptance and handoff work.
-- [OAuth publishing plan](oauth-publishing-plan.md): remove tester-only onboarding.
+- [OAuth publishing plan](oauth-publishing-plan.md): client-only access and rollout.
+- [Google Console rollout steps](google-oauth-rollout.md): deployment settings and UI checklist.
 - [Original assignment](scope.md): preserved as supplied.
 - [Historical investigation](investigation-questions.md): superseded experiments.
 
 The code and current scope define capabilities; the historical log is not a setup
-guide. Last local validation on 2026-09-09: all 61 automated tests passed. Deployment
+guide. Last local validation on 2026-09-09: all 77 automated tests passed. Deployment
 of the latest commit and live acceptance still need confirmation; a Git push alone
 is not evidence of either.
 
@@ -40,16 +41,17 @@ manual linking, copied bearer token, email address, or user ID.
 ## Upgrade the existing deployment
 
 Reuse the existing Railway service, `/data` volume, and Google web OAuth client.
-The start command remains `uv run mcp-slides`. No new environment variables are
-needed; keep the values in `.env.example`. `CONNECTOR_BEARER_TOKEN` is no longer
+The start command remains `uv run mcp-slides`. Add the pilot access and usage
+settings from `.env.example`; follow [the rollout checklist](google-oauth-rollout.md). `CONNECTOR_BEARER_TOKEN` is no longer
 used by the MVP and may be removed from Railway.
 
 **The old static-header connector must reconnect using OAuth.** Remove its static
 Authorization header and reconnect. If Vibe retains its old authentication type,
 add a new connector pointing at the same `/mcp` URL, without custom headers.
-Existing decks are unaffected. The old `default` token row remains in SQLite but
-is deliberately never used by the multi-user server. Everyone, including the
-original owner, authorizes their own connection once.
+Existing decks are unaffected. Startup removes legacy grants without verified
+identity and grants excluded by the current policy. Everyone, including the
+owner, must reconnect once after this identity-policy upgrade; reconnecting also
+starts fresh preferences.
 
 Keep this exact redirect URI authorized in the existing Google client:
 
@@ -57,16 +59,37 @@ Keep this exact redirect URI authorized in the existing Google client:
 https://mistral-slides-mcp-production.up.railway.app/auth/google/callback
 ```
 
-The Google Slides API must be enabled. The only Google scope is `drive.file`.
-The last recorded Google OAuth configuration is testing mode. In that mode, each
-account authorizing access must be added as a test user. Publishing the Google OAuth app is a separate step
-before unrestricted reviewer/user onboarding; implementing per-user OAuth does
-not remove Google's test-user restrictions.
+Enable the Google Slides API. Google scopes are `drive.file`, `openid`, and
+`https://www.googleapis.com/auth/userinfo.email` (the canonical `email` scope).
+The last recorded Google configuration is Testing, which still requires each
+account to be listed as a tester. After publishing, the server continues to admit
+only the configured Workspace domain and verified personal email exceptions.
+Publishing and deployed acceptance remain separate rollout steps.
 
 `TOKEN_DB_PATH=/data/tokens.sqlite3` persists both Google credentials and connector
 OAuth records. Keep one service instance and the volume attached across deploys.
 The schema addition is automatic and preserves the investigation tables.
 `GET /health` reports `"auth": "oauth"` after this version is deployed.
+
+## Pilot usage controls
+
+`PILOT_MAX_PAID_CALLS=100` permits 100 provider-call attempts over the lifetime of
+this SQLite database, across all users. Outline generation, image conversations,
+text edits, and generated insertions share the allowance. Explicit validation
+retries and failures count; SDK retries are disabled. Reads and styling do not
+consume this allowance. A deck normally takes two calls, but may take more after
+validation retries. An image conversation can contain multiple internal steps,
+so this is not a dollar/euro cap.
+
+`PILOT_MAX_CONCURRENT_CALLS=2` bounds simultaneous paid provider requests within
+the process. Keep one worker and one Railway replica. Budget exhaustion, busy
+capacity, and paused generation return actionable tool errors.
+`PILOT_PAID_CALLS_ENABLED=false` pauses new paid calls after redeployment; reads
+and styling remain available to admitted users. Calls already started may finish.
+
+The counter survives restarts. To grant more usage, raise the lifetime ceiling;
+do not delete the token database. Review available Mistral credits/model costs
+before increasing it. See [operation and rollout](google-oauth-rollout.md).
 
 ## Authentication design
 
@@ -83,11 +106,18 @@ The MCP SDK implements discovery, registration, client authentication, redirect
 validation, PKCE verification, and the OAuth token/revocation endpoints. Our
 provider handles Google consent and durable token storage. A connection gets an
 opaque, server-generated subject; all users of one Vibe client still get separate
-subjects. Reconnecting creates a fresh connection. Google identity/email scopes
-are unnecessary for this mapping, and Google tokens are never forwarded to Vibe.
+subjects. Reconnecting creates a fresh connection. Google identity scopes support
+the client-only admission policy: the server validates the signed ID token and
+nonce, then checks its `hd` claim or a verified exact email exception. The stable
+Google `sub` and minimal admission claims are stored alongside each connection.
+Google tokens are never forwarded to Vibe.
 
 - Explicit consent for the requesting client precedes Google OAuth.
 - Google state is browser-bound, single-use, and expires after 10 minutes.
+- Access checks and token renewal enforce the current configured admission policy.
+  Restart after changing allowlists to purge excluded connections and credentials.
+- Empty admission settings deny everyone. Domain checks use verified `hd`, never
+  an email suffix or account-picker hint.
 - Both OAuth legs use S256 PKCE; connector codes expire after 60 seconds.
 - Access tokens expire after one hour. Refresh tokens expire after 30 days of
   inactivity and rotate on use; replay revokes that connection's token family.

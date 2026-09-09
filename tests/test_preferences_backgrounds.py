@@ -22,7 +22,8 @@ buffer = BytesIO()
 Image.new('RGB', (1600, 900), '#FAF5EB').save(buffer, format='PNG')
 PNG = buffer.getvalue()
 ENV = {'GOOGLE_CLIENT_ID': 'test', 'GOOGLE_CLIENT_SECRET': 'test',
-       'PUBLIC_BASE_URL': 'https://example.com', 'MISTRAL_API_KEY': 'test'}
+       'PUBLIC_BASE_URL': 'https://example.com', 'MISTRAL_API_KEY': 'test',
+       'GOOGLE_ALLOWED_DOMAIN': 'example.com', 'GOOGLE_ALLOWED_EMAILS': ''}
 OUTLINE = {'title': 'Phones', 'slides': [{'type': 'bullets', 'title': 'History', 'bullets': ['A', 'B', 'C']}]}
 
 
@@ -35,6 +36,7 @@ class PreferenceAndImageTests(unittest.TestCase):
         self.addCleanup(self.env.stop)
         with closing(auth.connect()) as db:
             for subject in ('alice', 'bob'):
+                auth.save_identity(db, subject, {'sub': subject, 'hd': 'example.com'})
                 db.execute('insert into google_tokens values (?, ?, ?)', (subject, '{}', 1))
             db.commit()
 

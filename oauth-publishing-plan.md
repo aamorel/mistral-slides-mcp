@@ -1,43 +1,126 @@
-# Plan: Google authorization without a tester list
+# Plan: client-only OAuth pilot
 
-Status: deferred. This is a pending rollout plan, not evidence of publication.
-The 2026-09-09 documentation review made no Google Console or Railway changes.
-See the [current MVP scope](src/mcp_slides/mvp/SCOPE.md) for implemented capabilities.
+Status: access policy and usage controls implemented locally; deployment and
+live acceptance pending. No Google Console or Railway changes were made. Follow
+[the Google Console rollout checklist](google-oauth-rollout.md) for the handoff.
 
-## Goal
+## Goal and scope
 
-A new user can connect the MCP in Vibe, choose their Google account, and create slides in their own Drive without us first adding their email as a Google OAuth tester.
+Client reviewers connect in Vibe with their company Google account and create
+slides in their own Drive without sending individual tester emails. Publish the
+external Google OAuth app and restrict connector access on our server. Reuse the
+existing Railway service, SQLite volume, Google OAuth client, and callback URL.
+Presentation features remain as described in [the current MVP scope](src/mcp_slides/mvp/SCOPE.md).
 
-## Minimum rollout
+| Audience | Admission rule | Duration |
+| --- | --- | --- |
+| Client | Validated Google identity with hosted-domain claim `hd` exactly `mistral.ai` | Pilot and submission |
+| Owner | Exact verified email `aurelien.morel.arthur@gmail.com` | Pilot and submission |
+| Friend | Exact verified email `vmaxmc2@gmail.com` | Testing only; remove before submission |
+| Everyone else | Denied connector access | Always |
 
-- [ ] Confirm that Google Auth Platform's Data Access configuration matches the code: only `https://www.googleapis.com/auth/drive.file` for Google access.
-- [ ] Review the current Audience, Branding, and Verification Center settings for any outstanding requirements.
-- [ ] Switch the external OAuth app from **Testing** to **In production** using **Publish app**.
-- [ ] Connect from Vibe with a Google account that has never been on the tester list. Confirm account selection and consent work, the deck belongs to that account, and the returned link opens it.
-- [ ] Confirm reconnecting and refreshing credentials work. Existing testing grants may need reconnection; do not assume publishing extends their lifetime.
-- [ ] Remove the tester-email requirement from `USER-README.md` once the flow is verified, and describe any actual remaining Google prompts.
+Owner confirmed `aurelien.morel.arthur@gmail.com`. The two personal exceptions
+are provided in `.env.example`; set them explicitly in Railway.
 
-Expected infrastructure impact: reuse the current Railway service, persistent volume, Google web OAuth client, and callback URL. No authentication rewrite is expected just to publish the app. Publishing Google OAuth does not automatically distribute the connector in Vibe.
+Confirm that client accounts actually carry `hd=mistral.ai`. Google Testing has
+no domain wildcard; Google Internal access would require the project to belong
+to the client's Google organization.
 
-## Publishing versus verification
+## Minimum implementation
 
-Publishing removes the tester allowlist requirement. Google account and Workspace administrator restrictions can still apply. New production grants are no longer subject to the special seven-day testing expiry, although credentials can still expire or be revoked.
+- Add `openid` and `email` alongside `drive.file`; no broader Drive permission.
+- Validate Google's ID token with a supported library: signature, issuer,
+  audience, expiry, and nonce bound to the authorization attempt. Preserve the
+  existing state, browser binding, and PKCE checks.
+- Allow an exact verified `hd` match OR an exact verified personal email
+  exception. An email suffix or account-picker domain hint is not domain proof.
+- Check admission before storing Google credentials or issuing connector access.
+  Denied accounts receive a clear client-only message and trigger no model calls.
+- Persist Google's stable `sub` and minimal verified policy claims alongside each
+  connection. Preserve connection isolation and existing preferences.
+- Recheck current admission policy on authenticated tool access and token renewal,
+  so removed exceptions cannot continue with old tokens. Connections without
+  verified identity data must reconnect.
+- Configure domain and personal exceptions through deployment settings, not
+  hardcoded email addresses. Provide an operator switch to disable paid operations.
+- Add a persistent global paid-operation allowance and a small concurrency limit.
+  Include outline, cover-image, and all other paid model calls, failures and
+  retries. Reserve allowance atomically before calling providers; preserve it
+  across restarts. Choose values against available credits and configured models.
+  A request allowance is not an exact currency cap; document that limitation and
+  use a provider hard cap if available.
 
-Our current `drive.file` scope is non-sensitive. It does not require sensitive/restricted-scope verification or the security assessment associated with restricted scopes. Reassess this if we add broader permissions.
+Defer per-user quotas, billing, admin dashboards, account-merging changes, and
+broader public-launch work. This is a bounded client evaluation.
 
-Brand verification is separate. For a verified app name/logo, plan a public homepage, privacy policy describing actual data handling, support contact, and domain ownership verification. Check whether the current Railway hostname can meet Google's domain requirements; if a custom domain is needed, update the base URL and Google callback configuration accordingly. Review timing depends on Google's checks.
+## Steps to reach it
 
-## Before sharing widely
+### 1. Confirm configuration
 
-- [ ] Add per-user usage limits and a spending cap strategy: all users currently consume our Mistral API key.
-- [ ] Complete branding work and review credential storage and account disconnection/deletion before a broader public launch.
+- [x] Confirm the owner's exact email.
+- [ ] Confirm the client's Google Workspace domain with a live account.
+- [x] Implement configurable defaults: 100 lifetime paid API calls and two
+  concurrent calls. These are operation limits, not a currency cap.
+- [ ] Review available credits and model costs before enabling paid use.
+- [x] Document deployment settings and the operator disable switch.
 
-These are separate readiness tasks, not prerequisites imposed by the `drive.file` scope for removing the tester list.
+### 2. Implement and test locally
+
+- [x] Add verified identity handling, configurable admission policy, and minimal
+  identity persistence without changing presentation behavior.
+- [x] Add persistent usage enforcement and concurrency control.
+- [x] Test allowed domain, both personal exceptions, unrelated accounts, missing
+  or mismatched `hd`, unverified exception emails, and invalid ID tokens.
+- [x] Test that denial creates no usable connection and triggers no model spend.
+- [x] Test removal of an exception against existing access/refresh tokens and new
+  login; verify legacy connections must reconnect.
+- [x] Test allowance exhaustion, concurrent requests, restart persistence, and
+  release of concurrency slots after failure.
+
+### 3. Deploy the gate, then publish OAuth
+
+- [ ] Deploy access and usage controls while Google remains in Testing. Owner
+  and friend still need individual Google tester entries at this stage.
+- [ ] Verify both personal accounts end to end in Vibe.
+- [ ] Match Google Data Access configuration to `openid`, `email`, and `drive.file`.
+- [ ] Review Audience, Branding, and Verification Center requirements, then
+  switch the external app to **In production**.
+- [ ] Verify a client account that was never a tester can connect, generate a deck
+  in its own Drive, and open the returned link. Workspace admin restrictions may
+  still require client action.
+- [ ] Verify an unrelated account is denied by our server after Google sign-in.
+- [ ] Verify reconnect and refresh. Older testing grants may require reconnecting;
+  publishing does not retroactively guarantee their lifetime.
+
+### 4. Close the pilot for submission
+
+- [ ] Remove `vmaxmc2@gmail.com` from deployed personal exceptions and revoke its
+  existing connector sessions and stored Google credentials. Removing it only
+  from Google's tester list is insufficient after publication.
+- [ ] Verify the friend is denied on old connections and new login, while owner
+  and client remain allowed. Previously created Drive decks remain theirs.
+- [ ] Update `USER-README.md` to say “Client-only pilot: connect with your company
+  Google account,” describe actual consent prompts, and remove tester-email
+  instructions only after the production flow is verified.
+- [ ] Record deployed version, acceptance results, budget settings, and shutdown
+  procedure. Share the repository and MCP URL with the client.
+
+If publication or Workspace access is blocked, explicitly arrange individual
+reviewer test accounts as a fallback and document seven-day testing expiry.
+
+## Publishing and verification
+
+Publishing removes Google's tester gate; our server still enforces client-only
+access. It does not automatically list the connector in Vibe. The planned scopes
+do not introduce sensitive/restricted Drive access. Brand verification remains
+separate: inspect Google's requirements for homepage, privacy policy, support
+contact, and domain ownership before claiming a verified name/logo.
 
 ## References
 
-Investigated on 2026-09-08; recheck requirements before rollout.
+Audience and identity rules checked on 2026-09-09; review Console state at rollout.
 
 - [Google: audience and publishing status](https://support.google.com/cloud/answer/15549945?hl=en)
+- [Google: OpenID Connect and hosted-domain validation](https://developers.google.com/identity/openid-connect/openid-connect)
 - [Google: Drive API scopes](https://developers.google.com/workspace/drive/api/guides/api-specific-auth)
 - [Google: brand verification](https://developers.google.com/identity/protocols/oauth2/production-readiness/brand-verification)

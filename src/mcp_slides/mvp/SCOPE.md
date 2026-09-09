@@ -134,7 +134,7 @@ being asked.
 
 ## Validation and release constraints
 
-- Automated validation on 2026-09-09: all 61 tests passed, covering schemas, API request construction,
+- Automated validation on 2026-09-09: all 77 tests passed, covering schemas, API request construction,
   MCP discovery/invocation, authentication isolation, preferences, supported edits,
   partial style updates, URL normalization, and revision/error handling.
   This is local mocked-provider evidence, not deployed acceptance.
@@ -146,7 +146,13 @@ being asked.
 - Last recorded Google OAuth state is testing: accounts must be approved testers.
   This documentation review did not inspect the Console or deployment. Publishing
   is a submission task in [oauth-publishing-plan.md](../../../oauth-publishing-plan.md).
-- Google access uses each connection's credentials and `drive.file`; no shared
+  Client-only admission and global usage controls are implemented locally, with
+  deployed acceptance pending. Configure verified `mistral.ai` Workspace access
+  and personal exceptions; remove the friend exception before submission.
+  Defaults: 100 lifetime paid provider calls, two concurrent calls, and an operator
+  pause switch. These are operation limits, not a currency spending cap.
+- Google access uses each connection's credentials and `drive.file`, plus
+  `openid` and email identity scopes for admission; no shared
   Google-account fallback. Mistral calls use the operator's API key.
 - Deployment requires public HTTPS and persistent SQLite storage on the existing
   single-instance service. Temporary cover images use expiring capability URLs
@@ -159,5 +165,5 @@ being asked.
 - Slide removal/reordering, changing list counts, layout conversion,
   arbitrary/rich text editing, speaker notes, undo, folder selection, and export.
 - Google-account-scoped preferences and persisted source briefs.
-- Broad public-launch features such as usage quotas and further credential-storage
+- Broad public-launch features such as per-user quotas and further credential-storage
   hardening. Review operational limitations before expanding access.

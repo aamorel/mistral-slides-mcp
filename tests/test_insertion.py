@@ -4,6 +4,8 @@ import copy
 import json
 import os
 import unittest
+import tempfile
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -30,6 +32,14 @@ def deck():
 
 
 class InsertionTests(unittest.TestCase):
+    def setUp(self):
+        temp = tempfile.TemporaryDirectory()
+        env = patch.dict(os.environ, {'TOKEN_DB_PATH': str(Path(temp.name) / 'tokens.db'),
+            'PILOT_MAX_PAID_CALLS': '100', 'PILOT_PAID_CALLS_ENABLED': 'true'})
+        env.start()
+        self.addCleanup(temp.cleanup)
+        self.addCleanup(env.stop)
+
     def service(self, raw):
         service = MagicMock()
         service.presentations.return_value.get.return_value.execute.return_value = raw

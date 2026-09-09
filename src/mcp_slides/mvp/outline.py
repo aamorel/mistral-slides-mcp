@@ -7,6 +7,7 @@ import os
 from typing import Any
 
 from mistralai.client import Mistral
+from . import usage
 
 
 DEFAULT_MODEL = "mistral-medium-latest"
@@ -153,7 +154,7 @@ def generate_outline(
 
     with client:
         for attempt in range(2):
-            response = client.chat.complete(
+            response = usage.paid_call(client.chat.complete,
                 model=model, messages=messages, temperature=0.2,
                 response_format={"type": "json_object"},
             )

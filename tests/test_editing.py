@@ -1,3 +1,5 @@
+import tempfile
+from pathlib import Path
 """Boundaries, concurrency and UTF-16 updates for slide iteration."""
 import asyncio
 import copy
@@ -37,6 +39,15 @@ DECK = {'presentationId': 'deck1', 'title': 'Demo', 'revisionId': 'rev1', 'slide
 
 
 class EditingTests(unittest.TestCase):
+    def setUp(self):
+        temp = tempfile.TemporaryDirectory()
+        env = patch.dict(os.environ, {'TOKEN_DB_PATH': str(Path(temp.name) / 'tokens.db'),
+            'PILOT_MAX_PAID_CALLS': '100', 'PILOT_PAID_CALLS_ENABLED': 'true',
+            'GOOGLE_ALLOWED_DOMAIN': 'example.com', 'GOOGLE_ALLOWED_EMAILS': ''})
+        env.start()
+        self.addCleanup(temp.cleanup)
+        self.addCleanup(env.stop)
+
     def service(self, deck=None):
         service = MagicMock()
         service.presentations.return_value.get.return_value.execute.return_value = copy.deepcopy(deck or DECK)

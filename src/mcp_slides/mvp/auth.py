@@ -1,6 +1,7 @@
 """Google credentials keyed by an authenticated connector subject."""
 from __future__ import annotations
 
+import hmac
 import json
 import os
 import sqlite3
@@ -11,9 +12,11 @@ from pathlib import Path
 from google.auth.exceptions import RefreshError
 from google.auth.transport.requests import Request as GoogleRequest
 from google.oauth2.credentials import Credentials
+from google.oauth2 import id_token
 from google_auth_oauthlib.flow import Flow
 
 DRIVE_FILE_SCOPE = "https://www.googleapis.com/auth/drive.file"
+GOOGLE_SCOPES = [DRIVE_FILE_SCOPE, "openid", "https://www.googleapis.com/auth/userinfo.email"]
 
 
 def connect() -> sqlite3.Connection:
@@ -31,6 +34,9 @@ def connect() -> sqlite3.Connection:
     db.execute("create index if not exists connector_oauth_subject on connector_oauth(subject)")
     db.execute('create table if not exists style_preferences (subject text primary key, settings_json text not null)')
     db.execute('create table if not exists temporary_images (token_hash text primary key, subject text not null, data blob not null, expires_at integer not null)')
+    db.execute('create table if not exists google_identities (connection_id text primary key, claims text not null)')
+    db.execute('create table if not exists pilot_usage (id integer primary key check(id=1), calls integer not null)')
+    db.execute('insert or ignore into pilot_usage values (1, 0)')
     db.execute("delete from temporary_images where expires_at<=?", (int(time.time()),))
     db.commit()
     return db
@@ -42,7 +48,7 @@ def create_flow(redirect_uri: str) -> Flow:
         "client_secret": os.environ["GOOGLE_CLIENT_SECRET"],
         "auth_uri": "https://accounts.google.com/o/oauth2/auth",
         "token_uri": "https://oauth2.googleapis.com/token",
-    }}, scopes=[DRIVE_FILE_SCOPE], redirect_uri=redirect_uri)
+    }}, scopes=GOOGLE_SCOPES, redirect_uri=redirect_uri)
 
 
 def save_credentials(db, subject: str, creds: Credentials) -> None:
@@ -53,6 +59,7 @@ def save_credentials(db, subject: str, creds: Credentials) -> None:
 
 
 def revoke_subject(db, subject: str) -> None:
+    db.execute('delete from google_identities where connection_id=?', (subject,))
     db.execute('delete from style_preferences where subject=?', (subject,))
     db.execute('delete from temporary_images where subject=?', (subject,))
     db.execute("delete from connector_oauth where subject = ?", (subject,))
@@ -64,6 +71,8 @@ def load_credentials(subject: str) -> Credentials:
     if not subject or subject == "default":
         raise RuntimeError("Connect this connector to your Google account in Vibe first.")
     with closing(connect()) as db:
+        if not connection_allowed(db, subject):
+            raise RuntimeError("Client-only pilot. Reconnect with an approved Google account.")
         row = db.execute("select credentials_json from google_tokens where connection_id = ?", (subject,)).fetchone()
     if not row:
         raise RuntimeError("Reconnect this connector in Vibe to authorize your Google account.")
@@ -86,3 +95,49 @@ def load_credentials(subject: str) -> Credentials:
                        (creds.to_json(), int(time.time()), subject))
             db.commit()
     return creds
+
+
+def allowed_identity(claims: dict) -> bool:
+    """Only call with claims verified by Google, or loaded from our identity table."""
+    domain = os.getenv("GOOGLE_ALLOWED_DOMAIN", "").strip().lower()
+    emails = {value.strip().lower() for value in os.getenv("GOOGLE_ALLOWED_EMAILS", "").split(",") if value.strip()}
+    if not isinstance(claims.get("sub"), str) or not claims["sub"]:
+        return False
+    return bool((domain and claims.get("hd") == domain) or
+                (claims.get("email_verified") is True and
+                 isinstance(claims.get("email"), str) and claims["email"].lower() in emails))
+
+
+def verify_identity(raw_token: str, nonce: str) -> dict:
+    if not isinstance(raw_token, str) or not raw_token or not nonce:
+        raise ValueError("Missing Google identity")
+    claims = id_token.verify_oauth2_token(raw_token, GoogleRequest(), os.environ["GOOGLE_CLIENT_ID"])
+    if not isinstance(claims.get("nonce"), str) or not hmac.compare_digest(claims["nonce"], nonce):
+        raise ValueError("Invalid Google nonce")
+    if not isinstance(claims.get("sub"), str) or not claims["sub"]:
+        raise ValueError("Missing Google subject")
+    return {key: claims[key] for key in ("sub", "hd", "email", "email_verified") if key in claims}
+
+
+def save_identity(db, subject: str, claims: dict) -> None:
+    db.execute('insert into google_identities values (?, ?)', (subject, json.dumps(claims)))
+
+
+def connection_allowed(db, subject: str) -> bool:
+    row = db.execute('select claims from google_identities where connection_id=?', (subject,)).fetchone()
+    return bool(row and allowed_identity(json.loads(row[0])) and
+                db.execute('select 1 from google_tokens where connection_id=?', (subject,)).fetchone())
+
+
+def purge_disallowed_connections() -> int:
+    """Run at startup after changing policy; also removes legacy unverified grants."""
+    with closing(connect()) as db:
+        db.execute('begin immediate')
+        subjects = [row[0] for row in db.execute('select connection_id from google_tokens')]
+        removed = 0
+        for subject in subjects:
+            if not connection_allowed(db, subject):
+                revoke_subject(db, subject)
+                removed += 1
+        db.commit()
+    return removed

@@ -24,6 +24,7 @@ from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
 from . import auth, outline, slides, editing, preferences, backgrounds, styling, insertion, gradients
+from . import usage
 from .oauth import GoogleOAuthProvider, SCOPE, ResourceTokenHandler
 
 STYLE_GUIDANCE = (
@@ -77,11 +78,15 @@ async def generate_presentation(
             os.getenv("MISTRAL_MODEL", outline.DEFAULT_MODEL),
             basis=basis, source_content=source_content, instructions=instructions,
         )
+    except usage.UsageLimitError as exc:
+        raise ToolError(str(exc)) from None
     except Exception:
         raise ToolError("Mistral could not generate a valid outline. Check the API key or try again.") from None
     try:
         data = await run_in_threadpool(backgrounds.generate_image, content["title"], palette)
         image_token, image_url = await run_in_threadpool(backgrounds.publish_image, subject, data)
+    except usage.UsageLimitError as exc:
+        raise ToolError(str(exc)) from None
     except Exception:
         raise ToolError("The title background could not be generated or prepared. No deck was created. Check Mistral image-generation access and try again.") from None
     try:
@@ -274,7 +279,7 @@ async def add_slide(
     try:
         return await run_in_threadpool(gradients.with_images, subject, insertion.add_deck_slide, creds, presentation_id,
             expected_revision_id, instructions, source_content, after_slide_id, fallback_palette)
-    except editing.EditError as exc:
+    except (editing.EditError, usage.UsageLimitError) as exc:
         raise ToolError(str(exc)) from None
     except Exception:
         raise ToolError("Could not prepare the new slide. No insertion was sent to Google; try again later.") from None
@@ -305,7 +310,7 @@ async def edit_slide(
     try:
         return await run_in_threadpool(editing.edit_deck_slide, creds, presentation_id,
             slide_id, expected_revision_id, instructions, source_content)
-    except editing.EditError as exc:
+    except (editing.EditError, usage.UsageLimitError) as exc:
         raise ToolError(str(exc)) from None
     except Exception:
         raise ToolError("Could not prepare the slide revision. No edit was sent to Google; try again later.") from None
@@ -354,6 +359,8 @@ def create_app():
     if (base.query or base.fragment or base.username or base.password or base.path or not base.hostname or
         not (base.scheme == "https" or (base.scheme == "http" and base.hostname in ("localhost", "127.0.0.1", "::1")))):
         raise RuntimeError("PUBLIC_BASE_URL must be an HTTPS origin (HTTP allowed only on localhost).")
+    usage.settings()
+    auth.purge_disallowed_connections()
     provider = GoogleOAuthProvider(base_url)
     mcp = MCPServer(
         "mcp-slides", instructions=("Create Google Slides presentations in the authenticated user's own Google Drive. "

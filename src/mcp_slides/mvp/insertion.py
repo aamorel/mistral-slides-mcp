@@ -6,7 +6,7 @@ import re
 from googleapiclient.errors import HttpError
 from mistralai.client import Mistral
 
-from . import editing, outline, preferences, slides, styling
+from . import editing, outline, preferences, slides, styling, usage
 from .layouts import color_role
 
 
@@ -33,7 +33,7 @@ def propose_slide(context, instructions, source_content):
         'instructions': instructions, 'source_content': source_content}, ensure_ascii=False)}]
     with Mistral(api_key=os.environ['MISTRAL_API_KEY'], timeout_ms=60000) as client:
         for attempt in range(2):
-            response = client.chat.complete(model=os.getenv('MISTRAL_MODEL', outline.DEFAULT_MODEL),
+            response = usage.paid_call(client.chat.complete, model=os.getenv('MISTRAL_MODEL', outline.DEFAULT_MODEL),
                 messages=messages, temperature=0.2, response_format={'type': 'json_object'})
             try:
                 value = json.loads(response.choices[0].message.content)

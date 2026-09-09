@@ -23,11 +23,11 @@ CALLBACK = 'https://vibe.example.com/oauth/callback'
 VERIFIER = 'a' * 64
 CHALLENGE = base64.urlsafe_b64encode(hashlib.sha256(VERIFIER.encode()).digest()).decode().rstrip('=')
 ENV = {'GOOGLE_CLIENT_ID': 'google-client', 'GOOGLE_CLIENT_SECRET': 'google-secret',
-       'PUBLIC_BASE_URL': BASE, 'MISTRAL_API_KEY': 'mistral-secret'}
+       'PUBLIC_BASE_URL': BASE, 'MISTRAL_API_KEY': 'mistral-secret', 'GOOGLE_ALLOWED_DOMAIN': 'example.com', 'GOOGLE_ALLOWED_EMAILS': ''}
 
 
 def google_credentials(account='alice'):
-    return Credentials(token=f'google-access-{account}', refresh_token=f'google-refresh-{account}',
+    return Credentials(id_token='signed-google-token', token=f'google-access-{account}', refresh_token=f'google-refresh-{account}',
                        token_uri='https://oauth2.googleapis.com/token', client_id='google-client',
                        client_secret='google-secret', scopes=[auth.DRIVE_FILE_SCOPE],
                        expiry=datetime.now() + timedelta(hours=1))
@@ -73,7 +73,8 @@ class OAuthTests(unittest.TestCase):
         response = self.client.post('/auth/google/start', data={'request': ticket, 'csrf': csrf}, headers={'Origin': BASE}, follow_redirects=False)
         self.assertEqual(response.status_code, 303, response.text)
         query = parse_qs(urlparse(response.headers['location']).query)
-        self.assertEqual(query['scope'], [auth.DRIVE_FILE_SCOPE])
+        self.assertEqual(set(query['scope'][0].split()), set(auth.GOOGLE_SCOPES))
+        self.assertIn('nonce', query)
         self.assertEqual(query['redirect_uri'], [BASE + '/auth/google/callback'])
         self.assertIn('code_challenge', query)
         return query['state'][0]
@@ -84,7 +85,7 @@ class OAuthTests(unittest.TestCase):
             pending = oauth.get(db, 'google_state', oauth.digest(state))
         flow = MagicMock()
         flow.credentials = google_credentials(account)
-        with patch.object(auth, 'create_flow', return_value=flow):
+        with patch.object(auth, 'create_flow', return_value=flow), patch.object(auth.id_token, 'verify_oauth2_token', return_value={'sub': account, 'hd': 'example.com', 'nonce': pending['nonce']}):
             response = self.client.get('/auth/google/callback', params={'state': state, 'code': 'google-code-private'}, follow_redirects=False)
         self.assertEqual(response.status_code, 303, response.text)
         self.assertEqual(flow.code_verifier, pending['verifier'])
@@ -179,7 +180,9 @@ class OAuthTests(unittest.TestCase):
             create.assert_not_called()
         self.client.cookies.set(oauth.COOKIE, cookie, domain='slides.example.com', path='/')
         flow = MagicMock(credentials=google_credentials())
-        with patch.object(auth, 'create_flow', return_value=flow):
+        with closing(auth.connect()) as db:
+            pending = oauth.get(db, 'google_state', oauth.digest(state))
+        with patch.object(auth, 'create_flow', return_value=flow), patch.object(auth.id_token, 'verify_oauth2_token', return_value={'sub': 'alice', 'hd': 'example.com', 'nonce': pending['nonce']}):
             for expected in (303, 400):
                 self.assertEqual(self.client.get('/auth/google/callback', params={'state': state, 'code': 'fake'}, follow_redirects=False).status_code, expected)
             flow.fetch_token.assert_called_once()
@@ -240,3 +243,22 @@ class OAuthTests(unittest.TestCase):
         for secret in ('private-header', 'private-code', 'private-state'):
             self.assertNotIn(secret, output)
         self.assertIn('auth=invalid', output)
+
+    def test_disallowed_or_invalid_google_identity_never_issues_access(self):
+        for claims in ({'sub': 'outsider', 'hd': 'other.example.com'},
+                       {'sub': 'outsider', 'email': 'person@example.com', 'email_verified': True},
+                       {'sub': 'user', 'hd': 'example.com', 'nonce': 'wrong'}):
+            with self.subTest(claims=claims):
+                state = self.google_redirect()
+                with closing(auth.connect()) as db:
+                    pending = oauth.get(db, 'google_state', oauth.digest(state))
+                flow = MagicMock(credentials=google_credentials())
+                with patch.object(auth, 'create_flow', return_value=flow), patch.object(
+                        auth.id_token, 'verify_oauth2_token', return_value={'nonce': pending['nonce'], **claims}):
+                    response = self.client.get('/auth/google/callback', params={'state': state, 'code': 'fake'}, follow_redirects=False)
+                self.assertEqual(response.status_code, 400)
+                with closing(auth.connect()) as db:
+                    self.assertEqual(db.execute('select count(*) from google_tokens').fetchone()[0], 0)
+                    self.assertEqual(db.execute('select count(*) from google_identities').fetchone()[0], 0)
+                    self.assertEqual(db.execute("select count(*) from connector_oauth where kind in ('code', 'access', 'refresh')").fetchone()[0], 0)
+                    self.assertEqual(db.execute('select calls from pilot_usage').fetchone()[0], 0)

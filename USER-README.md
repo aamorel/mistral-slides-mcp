@@ -58,7 +58,7 @@ and font, falling back to your current saved default with an explicit notice if
 needed. Adding images, removing/reordering slides, and changing existing layouts
 remain unsupported.
 
-**Before testing:** send me the Google email you’ll use so I can add you as a tester. Google may show an “app not verified” warning because this is a test app; continue only if you recognize this invitation and are comfortable granting access.
+**Access:** this is a client-only pilot for approved company Google accounts and invited personal testers. The last recorded deployment uses Google Testing: until the production rollout is confirmed, send me the Google email you’ll use so I can add you as a tester. Google may show an “app not verified” warning because this is a test app; continue only if you recognize this invitation and are comfortable granting access.
 
 Please tell me whether connecting, creating the deck, and opening it worked. If something fails, send me the error message—never passwords or tokens.
 
@@ -73,3 +73,7 @@ requires a separate request. Reconnecting starts a new preference scope.
 You can paste a Google Slides link when referring to a deck. Access is limited to
 files available to this connector and your connected account. For implementation
 limits, see the [current MVP scope](src/mcp_slides/mvp/SCOPE.md).
+
+After the identity-policy upgrade, reconnect once with your approved account. If
+generation is paused, busy, or the pilot allowance is exhausted, follow the tool
+message; contact the operator for access or allowance changes.
