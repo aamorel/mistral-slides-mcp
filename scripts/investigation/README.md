@@ -1,5 +1,10 @@
 # Investigation tools
 
+Completed disposable experiment: [Vibe image attachment probe](image_attachment_probe/README.md).
+[Live results](image_attachment_probe/RESULTS.md) confirm transfer of a freshly
+uploaded image with identical decoded RGB pixels. Its server, tests, design and
+fixture generator are isolated here; none is part of the Slides application.
+
 These experiments helped validate Google Slides, Mistral, and Vibe independently
 before the current connector was built. They are retained as historical examples,
 not maintained production entry points. Their auth and output contracts differ
