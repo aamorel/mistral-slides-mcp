@@ -111,7 +111,7 @@ def read_deck(creds: Any, presentation_id: str) -> tuple[Any, dict, dict]:
         "title": raw.get("title", ""), "revision_id": raw.get("revisionId"),
         "limitations": LIMITATIONS,
         "slides": [{"slide_id": page["objectId"], "position": index,
-                    "default_style": style_capability(page),
+                    "style": style_capability(page),
                     "elements": [normalize_element(e) for e in page.get("pageElements", [])]}
                    for index, page in enumerate(raw.get("slides", []), 1)],
     }
@@ -227,10 +227,12 @@ def edit_deck_slide(creds: Any, presentation_id: str, slide_id: str,
                     "startIndex": old["start"] + size, "endIndex": old["end"] + size}}},
             ])
             changes.append({"element_id": element_id, "before": old["text"], "after": new})
+    revision_id = expected_revision_id
     if requests:
         try:
-            service.presentations().batchUpdate(presentationId=presentation_id, body={
+            response = service.presentations().batchUpdate(presentationId=presentation_id, body={
                 "requests": requests, "writeControl": {"requiredRevisionId": expected_revision_id}}).execute(num_retries=0)
+            revision_id = response.get("writeControl", {}).get("requiredRevisionId")
         except HttpError as exc:
             if exc.resp.status in (400, 409, 412):
                 raise EditError("Google rejected the edit; the revision may have changed or expired. Read the deck again before retrying.") from None
@@ -240,4 +242,4 @@ def edit_deck_slide(creds: Any, presentation_id: str, slide_id: str,
     return {"presentation_id": presentation_id, "presentation_url": deck["presentation_url"],
             "slide_id": slide_id, "position": slide["position"],
             "status": "updated" if changes else "unchanged", "changes": changes,
-            "limitations": LIMITATIONS}
+            "limitations": LIMITATIONS, "revision_id": revision_id, "warnings": []}

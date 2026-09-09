@@ -7,6 +7,17 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from . import auth
 
 
+def validate_contrast(background: str, foreground: str):
+    def luminance(color):
+        channels = [int(color[i:i+2], 16) / 255 for i in (1, 3, 5)]
+        return sum((c / 12.92 if c <= .04045 else ((c + .055) / 1.055) ** 2.4) * w
+                   for c, w in zip(channels, (.2126, .7152, .0722)))
+
+    low, high = sorted([luminance(background), luminance(foreground)])
+    if (high + .05) / (low + .05) < 4.5:
+        raise ValueError('Title and body colors must each have at least 4.5:1 contrast against the background.')
+
+
 class StyleSettings(BaseModel):
     model_config = ConfigDict(extra='forbid')
     background: str = Field(pattern=r'^#[0-9A-Fa-f]{6}$')
@@ -16,19 +27,28 @@ class StyleSettings(BaseModel):
 
     @model_validator(mode='after')
     def check_contrast(self):
-        def luminance(color):
-            channels = [int(color[i:i+2], 16) / 255 for i in (1, 3, 5)]
-            return sum((c / 12.92 if c <= .04045 else ((c + .055) / 1.055) ** 2.4) * w
-                       for c, w in zip(channels, (.2126, .7152, .0722)))
         for color in (self.title_color, self.body_color):
-            low, high = sorted([luminance(self.background), luminance(color)])
-            if (high + .05) / (low + .05) < 4.5:
-                raise ValueError('Title and body colors must each have at least 4.5:1 contrast against the background.')
+            validate_contrast(self.background, color)
         return self
 
     def palette(self):
         return {'background': self.background[1:], 'title': self.title_color[1:],
                 'body': self.body_color[1:], 'font_family': self.font_family}
+
+
+class StyleChanges(BaseModel):
+    """Only supplied fields are changed; null is not a style value."""
+    model_config = ConfigDict(extra='forbid')
+    background: str | None = Field(default=None, pattern=r'^#[0-9A-Fa-f]{6}$')
+    title_color: str | None = Field(default=None, pattern=r'^#[0-9A-Fa-f]{6}$')
+    body_color: str | None = Field(default=None, pattern=r'^#[0-9A-Fa-f]{6}$')
+    font_family: Literal['Arial', 'Verdana', 'Georgia', 'Trebuchet MS'] | None = None
+
+    @model_validator(mode='after')
+    def check_changes(self):
+        if not self.model_fields_set or any(getattr(self, key) is None for key in self.model_fields_set):
+            raise ValueError('Supply at least one style field; omit unchanged fields instead of using null.')
+        return self
 
 
 DEFAULT_STYLE = StyleSettings(background='#FFFFFF', title_color='#244B63', body_color='#263238', font_family='Arial')
@@ -54,6 +74,9 @@ def set_style(subject, settings):
         # A concurrent disconnect must not recreate personal state.
         if not db.execute('select 1 from google_tokens where connection_id=?', (subject,)).fetchone():
             raise RuntimeError('Reconnect this connector before saving a style.')
+        row = db.execute('select settings_json from style_preferences where subject=?', (subject,)).fetchone()
+        current = StyleSettings.model_validate_json(row[0]) if row else DEFAULT_STYLE
+        settings = StyleSettings.model_validate({**current.model_dump(), **settings.model_dump(exclude_unset=True)})
         db.execute('insert into style_preferences values (?, ?) on conflict(subject) do update set settings_json=excluded.settings_json',
                    (subject, settings.model_dump_json()))
         db.commit()

@@ -54,14 +54,6 @@ def propose_slide(context, instructions, source_content):
     raise editing.EditError('No slide generated.')
 
 
-def rgb_hex(value):
-    if not isinstance(value, dict):
-        raise ValueError('Missing explicit RGB color')
-    channels = [value.get(key, 0) for key in ('red', 'green', 'blue')]
-    if any(not isinstance(c, (int, float)) or not 0 <= c <= 1 for c in channels):
-        raise ValueError('Invalid RGB color')
-    return '#' + ''.join(f'{round(c * 255):02X}' for c in channels)
-
 
 def slide_palette(page):
     inspected = styling.inspect_slide(page)
@@ -70,7 +62,7 @@ def slide_palette(page):
     fill = page.get('pageProperties', {}).get('pageBackgroundFill', {}).get('solidFill', {})
     if fill.get('alpha', 1) != 1:
         raise ValueError('Transparent background')
-    background = rgb_hex(fill.get('color', {}).get('rgbColor'))
+    background = styling.rgb_hex(fill.get('color', {}).get('rgbColor'))
     colors, fonts = {'title': set(), 'body': set()}, set()
     for element in inspected['texts']:
         for entry in element['shape']['text']['textElements']:
@@ -79,7 +71,7 @@ def slide_palette(page):
                 continue
             style = run.get('style', {})
             fonts.add(style.get('fontFamily'))
-            colors[color_role(element['objectId'])].add(rgb_hex(
+            colors[color_role(element['objectId'])].add(styling.rgb_hex(
                 style.get('foregroundColor', {}).get('opaqueColor', {}).get('rgbColor')))
     if len(fonts) != 1 or any(len(values) != 1 for values in colors.values()):
         raise ValueError('Inconsistent or missing colors/font')
@@ -145,7 +137,7 @@ def add_deck_slide(creds, presentation_id, expected_revision_id, instructions,
     slide_id = f'mvp_slide_{suffix}'
     requests = slides.content_slide_requests(slide, suffix, palette, insertion_index=position)
     try:
-        service.presentations().batchUpdate(presentationId=presentation_id, body={
+        response = service.presentations().batchUpdate(presentationId=presentation_id, body={
             'requests': requests, 'writeControl': {'requiredRevisionId': expected_revision_id}}).execute(num_retries=0)
     except HttpError as exc:
         if exc.resp.status in (400, 409, 412):
@@ -155,4 +147,6 @@ def add_deck_slide(creds, presentation_id, expected_revision_id, instructions,
         raise editing.EditError(f'Insertion could not be confirmed. Read the deck and check for {slide_id} before retrying to avoid duplicates.') from None
     return {'status': 'added', 'presentation_id': presentation_id, 'presentation_url': deck['presentation_url'],
             'slide_id': slide_id, 'position': position + 1, 'total_slide_count': len(pages) + 1,
-            'slide': slide, 'style_source': style_source, 'warnings': warnings}
+            'slide': slide, 'style_source': style_source, 'warnings': warnings,
+            'revision_id': response.get('writeControl', {}).get('requiredRevisionId'),
+            'changes': [{'slide_id': slide_id, 'position': position + 1, 'action': 'added'}]}

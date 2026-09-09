@@ -158,3 +158,16 @@ class PreferenceAndImageTests(unittest.TestCase):
 
         titles = [r['insertText'] for r in requests if 'insertText' in r]
         self.assertIn({'objectId': 'mvp_title_0', 'insertionIndex': 0, 'text': 'Phones'}, titles)
+
+    def test_partial_preferences_merge_and_invalid_merge_leaves_saved_state_intact(self):
+        preferences.set_style('alice', preferences.StyleSettings(**SETTINGS))
+        updated = preferences.set_style('alice', preferences.StyleChanges(title_color='#112233'))
+        expected = {**SETTINGS, 'title_color': '#112233'}
+        self.assertEqual(updated['settings'], expected)
+        with self.assertRaises(ValidationError):
+            preferences.set_style('alice', preferences.StyleChanges(background='#112233'))
+        self.assertEqual(preferences.get_style('alice')['settings'], expected)
+        self.assertEqual(preferences.get_style('bob')['settings'], preferences.DEFAULT_STYLE.model_dump())
+        for changes in ({}, {'title_color': None}, {'font_family': 'Unknown'}, {'extra': 'value'}):
+            with self.assertRaises(ValidationError):
+                preferences.StyleChanges(**changes)

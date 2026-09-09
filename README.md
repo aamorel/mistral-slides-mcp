@@ -155,11 +155,11 @@ and start a fresh conversation after contract changes; reconnecting authenticati
 alone may not refresh tool descriptions. Client wording is still model-generated.
 
 Every new deck uses the connection's default colors and font automatically.
-There is no `style` argument, named preset, or per-deck override. Without saved
+Generation has no `style` argument or named presets. Use `set_presentation_style` afterwards for deck-specific changes. Without saved
 preferences, the default is a white background, blue titles (`#244B63`), charcoal
 body text (`#263238`), and Arial. `set_default_style` changes the defaults for
 future decks; `reset_default_style` restores these built-in settings. Partial
-changes use `get_default_style` first, then save the complete merged settings.
+changes are merged and validated by the server in one database transaction; no preliminary read is needed.
 The renderer applies these settings directly; the cover image generator also
 receives the resolved palette.
 
@@ -169,7 +169,7 @@ optional discovery message belongs in chat; there is no mandatory selection step
 Once-per-conversation behavior depends on the client's context, not persisted
 server state. A request to style only one deck must not silently change saved
 defaults. Users can explicitly apply their current default to an existing deck
-with `apply_default_style`; the assistant must not create a replacement without a user request.
+with `set_presentation_style`; the assistant must not create a replacement without a user request.
 
 Google access is checked before spending a Mistral request. Invalid model output
 is retried once and validated before deck creation. If population fails after
@@ -279,12 +279,12 @@ validation, and browser-bound OAuth state remain enforced.
 ## Read and revise an existing slide
 
 The deck workflow uses `generate_presentation`, `get_presentation`, and
-`edit_slide`, `add_slide`, and `apply_default_style`; three additional tools manage saved styles. Reading is annotated as read-only; editing
+`edit_slide`, `add_slide`, and `set_presentation_style`; three additional tools manage saved styles. Reading is annotated as read-only; editing
 is explicitly a mutation. The existing Google `drive.file` permission remains
 sufficient for accessible decks. The internal connector scope `slides.generate`
 retains its name for compatibility and covers all eight tools; it is not a
 separate read-only permission. The consent page describes creation, reading and
-text revision, adding content slides, and applying default colors/font.
+text revision, adding content slides, and changing presentation colors/font.
 
 `get_presentation` is a separate tool because reading is useful on its own
 ("What's on slide two?") and helps Vibe choose an edit. It provides the current
@@ -361,7 +361,7 @@ If a write is unconfirmed, the error identifies the expected new slide ID: rerea
 and check it before deciding to retry. Never blindly retry a non-idempotent addition.
 
 Tool descriptions explicitly route wording to `edit_slide`, additions to
-`add_slide`, and saved style application to `apply_default_style`. They require
+`add_slide`, and deck style changes to `set_presentation_style`. They require
 checking the entire request before mutation: unsupported requirements must be
 explained and scope clarified, not silently discarded or tested by calling a tool.
 Failure never authorizes a replacement deck. Refresh client tool metadata after
@@ -434,7 +434,7 @@ Automated tests mock both providers; they do not substitute for these live check
 ## Saved default styles
 
 `get_default_style()` returns this connection's settings and a readable Markdown
-summary. `set_default_style(settings)` saves a complete validated configuration;
+summary. `set_default_style(settings)` accepts only the fields to change;
 `reset_default_style()` removes it. These tools do not execute Markdown or edit a
 filesystem file. SQLite stores structured settings keyed by the authenticated
 connection subject, never a user-supplied identity.
@@ -450,11 +450,10 @@ connection subject, never a user-supplied identity.
 }
 ```
 
-All four fields are required when saving. Fonts are limited to Arial, Verdana,
+Supply at least one field; omitted fields are preserved. Empty updates and explicit nulls are rejected. Fonts are limited to Arial, Verdana,
 Georgia, and Trebuchet MS. Colors must be six-digit hex values; title and body
 text each need at least 4.5:1 contrast against the background. Unsupported fields
-and unreadable combinations are rejected. For partial requests, the assistant
-reads current settings and submits the merged configuration.
+and unreadable combinations are rejected. The server merges partial requests with the saved settings and validates the complete result before saving.
 
 Only an explicit request such as “Save these colors as my default for future
 presentations” should save preferences. One-deck requests never change defaults.
@@ -463,29 +462,53 @@ Preferences survive restarts and token refresh, but a new OAuth connection has a
 new subject. Disconnect/revocation deletes its preferences. Saving alone does not
 change existing decks. Saved styles do not support arbitrary layouts or imported templates.
 
-## Apply defaults to an existing deck
+## Style this presentation or save preferences
 
-`apply_default_style(presentation_id, expected_revision_id)` applies the current
-connection's complete default colors/font at the same Google Slides URL. It does
-not change saved preferences and makes no Mistral call. Example: “Apply my default
-style to the trees presentation.” The assistant first calls `get_presentation`,
-checks each slide's `default_style` support, then passes the returned revision.
-Saving defaults alone never authorizes applying them to existing decks.
+These are separate actions with separate effects:
 
-Supported original `mvp_slide_N` slides receive background colors and title/body
-colors and fonts. The cover's empty title band is updated too; its existing image
-is preserved, so its colors may differ from the new default. Wording, sizes,
-emphasis, bullets, positions and slide order remain unchanged. Custom slides,
-groups, linked/mixed text, or other unsupported elements cause the entire affected
-slide to be skipped to avoid mismatched background/text contrast. The result lists
-`applied_slide_ids` and `skipped_slides` with reasons; `status=unsupported` means
-nothing was written. `status=applied` acknowledges applying the settings, even if
-some values already matched; it does not claim visual verification.
+| Request | Tool call | Effect |
+| --- | --- | --- |
+| “Make this deck's titles blue” | `set_presentation_style(..., changes={"title_color": "#244B63"})` | This deck only |
+| “Use blue titles by default” | `set_default_style(settings={"title_color": "#244B63"})` | Future decks only |
+| “Apply my defaults to this deck” | `set_presentation_style(..., use_default_style=True)` | Applies all saved colors/font to this deck |
 
-The server rereads the deck and uses Google's `requiredRevisionId` in one atomic
-batch. Stale revisions cause no write; uncertain writes are not retried. Read the
-deck again to inspect its style metadata before deciding what to do next. No new
-Google scopes, environment variables, or database migrations are required.
+`set_presentation_style` replaces `apply_default_style`. Refresh Vibe's connector
+metadata after deployment. It requires `presentation_id` and
+`expected_revision_id`, plus either `changes` or `use_default_style=true`, never
+both. All presentation tools accept a Google Slides URL or ID. Read with
+`get_presentation` for current IDs, revision and each slide's `style` support.
+Saving preferences never changes an existing deck; editing a deck never saves preferences.
+
+Partial deck updates write only supplied fields, preserving each slide's remaining
+formatting. The server checks the resulting contrast against actual text colors
+and backgrounds (the title band for covers). Unsupported slides, unreadable
+inherited colors, or combinations below 4.5:1 contrast are skipped with reasons.
+Font-only updates do not require color inference. Full defaults can replace all
+colors without inferring old ones. No Mistral call is needed for styling.
+
+Supported original slides preserve wording, sizes, emphasis, bullets, positions,
+order and the cover image. The image is not recolored. Results report
+`applied_slide_ids`, `skipped_slides`, `changes` and `warnings`; `status=unsupported`
+means no slides were styled. `status=applied` acknowledges applying the settings,
+even if some values already matched; it does not claim visual verification.
+
+Edit, insertion and styling results share `status`, `presentation_url`,
+`revision_id`, `changes` and `warnings`, plus operation-specific details. A successful
+write returns Google's updated revision when provided; otherwise `revision_id`
+is null and another read is required. A revision can be reused only when the
+assistant already has the necessary context. The server still checks the revision
+before writing. Conflicts and uncertain outcomes require a fresh read; never
+blindly retry an insertion.
+
+## Why eight tools?
+
+Following the working-MVP focus in [scope.md](scope.md), tools represent distinct
+user actions: create, read, revise, insert, style a deck, and read/save/reset
+preferences. The server owns URL parsing, preference merging, content generation,
+validation and Google API requests. This keeps the assistant's job focused on
+intent and source context without introducing a second general-purpose agent.
+The implementation uses the existing modules, with no new dependencies, database
+migrations or Google scopes.
 
 ## Automatic title-slide image
 
