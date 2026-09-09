@@ -133,8 +133,8 @@ class PreferenceAndImageTests(unittest.TestCase):
             render.assert_not_called()
             generate.side_effect = None
             generate.return_value = PNG
-            render.side_effect = RuntimeError('A deck was created but could not be populated: example')
-            with self.assertRaisesRegex(ToolError, 'could not be populated'):
+            render.side_effect = slides.DeckCreationError('A deck was created but population could not be confirmed: example')
+            with self.assertRaisesRegex(ToolError, 'population could not be confirmed'):
                 asyncio.run(server.generate_presentation('Phones'))
             with closing(auth.connect()) as db:
                 self.assertEqual(db.execute('select count(*) from temporary_images').fetchone()[0], 0)

@@ -12,7 +12,7 @@ After acceptance testing these flows, freeze new features and focus on correctne
 visual fit, deployment, OAuth publishing, repository cleanup, and code ownership.
 Adding/removing items and converting existing layouts remain deferred.
 
-Documentation synchronized on 2026-09-09. Local automated validation: 77 tests
+Documentation synchronized on 2026-09-09. Local automated validation: 83 tests
 passed. Unchecked live, publishing and ownership tasks below remain pending.
 
 Auth and the connection UI are frozen for the pilot; [auth reference](auth.md) is the
@@ -21,7 +21,7 @@ exception remain release tasks.
 
 ## 1. Understand and own the code
 
-- [ ] Trace generation: `server.py` → `outline.py` → `layouts.py` / `slides.py`.
+- [ ] Trace generation: `server.py` → `presentation_service.py` → `outline.py` → `layouts.py` / `slides.py`.
   Explain inputs, Mistral instructions, validation, Google writes, and partial failures.
 - [ ] Trace reading and editing: `server.py` → `editing.py`.
   Explain element IDs, supported text, paragraph preservation, revision checks,
@@ -59,10 +59,11 @@ exception remain release tasks.
 ## 3. Verify reproducibility and operation
 
 - [ ] Install from a fresh checkout with `uv sync --locked` and run the documented tests.
-- [ ] Add a small CI workflow that installs from the lockfile and runs the test suite.
+- [x] Add a small CI workflow that installs from the lockfile and runs the test suite.
+  Workflow added locally; confirm its first hosted run after pushing.
 - [ ] Confirm the setup instructions cover required environment variables,
   Google API/redirect configuration, Railway start command, and persistent volume.
-- [ ] Document the single-instance SQLite assumption and basic failure diagnosis.
+- [x] Document the single-instance SQLite assumption and basic failure diagnosis.
 - [ ] Decide and document how Mistral spending is bounded during evaluation,
   including how to disable access if needed. All users consume the operator's key.
 - [ ] Review and document credential storage and disconnection behavior. Keep

@@ -1,11 +1,11 @@
 """Presentation generator with per-user connector OAuth."""
 from __future__ import annotations
 
-import hashlib
 import logging
 import os
 import re
 import time
+import uuid
 from typing import Annotated, Literal, Any
 from urllib.parse import urlparse
 
@@ -27,13 +27,10 @@ from . import auth, outline, slides, editing, preferences, backgrounds, styling,
 from . import usage, pages
 from .oauth import GoogleOAuthProvider, SCOPE, ResourceTokenHandler
 
-STYLE_GUIDANCE = (
-    "Use set_presentation_style for this deck's colors/font/gradient; it never saves defaults. "
-    "A subtle blue gradient is on by default for content slides. Set gradient=false to remove it; "
-    "set gradient=true and gradient_color to enable a different tint. The cover image is preserved. "
-    "Use set_default_style only for preferences for future decks. Both accept partial changes. "
-    "Use set_presentation_style(use_default_style=True) to apply saved defaults explicitly."
-)
+from .presentation_service import STYLE_GUIDANCE
+from . import presentation_service
+from .observability import request_id, configure_logging
+
 
 async def generate_presentation(
     topic: Annotated[str | None, Field(min_length=1, max_length=1000)] = None,
@@ -68,45 +65,12 @@ async def generate_presentation(
     creds = await connected_credentials()
     subject = connection_subject()
     try:
-        saved = await run_in_threadpool(preferences.get_style, subject)
-        palette = preferences.StyleSettings.model_validate(saved["settings"]).palette()
-    except Exception:
-        raise ToolError("Could not load the saved style. Try again before creating the deck.") from None
-    try:
-        content = await run_in_threadpool(
-            outline.generate_outline, topic.strip() if topic else None, slide_count, audience, tone,
-            os.getenv("MISTRAL_MODEL", outline.DEFAULT_MODEL),
-            basis=basis, source_content=source_content, instructions=instructions,
+        return await presentation_service.create_presentation(
+            creds, subject, topic, slide_count, audience, tone, basis=basis,
+            source_content=source_content, instructions=instructions,
         )
-    except usage.UsageLimitError as exc:
+    except presentation_service.GenerationError as exc:
         raise ToolError(str(exc)) from None
-    except Exception:
-        raise ToolError("Mistral could not generate a valid outline. Check the API key or try again.") from None
-    try:
-        data = await run_in_threadpool(backgrounds.generate_image, content["title"], palette)
-        image_token, image_url = await run_in_threadpool(backgrounds.publish_image, subject, data)
-    except usage.UsageLimitError as exc:
-        raise ToolError(str(exc)) from None
-    except Exception:
-        raise ToolError("The title background could not be generated or prepared. No deck was created. Check Mistral image-generation access and try again.") from None
-    try:
-        result = await run_in_threadpool(gradients.with_images, subject, slides.create_deck, creds, content,
-            palette=palette, cover_image_url=image_url)
-        result = {**result, "style_settings": saved["settings"], "style_guidance": STYLE_GUIDANCE}
-        # Correlate the exact returned URL with a reported link without exposing
-        # private deck IDs, titles, URLs or Google credentials in Railway logs.
-        logger.info("presentation_result url_sha256=%s",
-                    hashlib.sha256(result["presentation_url"].encode()).hexdigest())
-        return result
-    except RuntimeError as exc:
-        raise ToolError(str(exc)) from None
-    except Exception:
-        raise ToolError("Google Slides could not create the deck. Check Google access and API availability.") from None
-    finally:
-        try:
-            await run_in_threadpool(backgrounds.remove_image, image_token)
-        except Exception:
-            logger.warning("temporary_image_cleanup_failed")
 
 
 logger = logging.getLogger("uvicorn.error")
@@ -334,19 +298,27 @@ class RequestLog:
         method = scope.get("method", "")
         method = method if method in {"GET", "POST", "DELETE", "HEAD", "OPTIONS", "PUT", "PATCH"} else "other"
         present = bool(dict(scope.get("headers", [])).get(b"authorization"))
+        correlation = uuid.uuid4().hex
+        context_token = request_id.set(correlation)
         started = time.monotonic()
         if path != "/health":
-            logger.info("http_request method=%s route=%s authorization_present=%s", method, route, present)
+            logger.info("http_request request_id=%s method=%s route=%s authorization_present=%s", correlation, method, route, present)
 
         async def logged_send(message):
             if message["type"] == "http.response.start" and path != "/health":
                 user = scope.get("user")
                 result = ("accepted" if getattr(user, "is_authenticated", False) else
                           "invalid" if present else "missing") if path.startswith('/mcp') else "not_required"
-                logger.info("http_response method=%s route=%s status=%s auth=%s elapsed_ms=%d",
-                            method, route, message["status"], result, int((time.monotonic()-started)*1000))
+                logger.info("http_response request_id=%s method=%s route=%s status=%s auth=%s elapsed_ms=%d",
+                            correlation, method, route, message["status"], result, int((time.monotonic()-started)*1000))
+            if message["type"] == "http.response.start":
+                message = {**message, "headers": [*message.get("headers", []),
+                                                 (b"x-request-id", correlation.encode())]}
             await send(message)
-        await self.app(scope, receive, logged_send)
+        try:
+            await self.app(scope, receive, logged_send)
+        finally:
+            request_id.reset(context_token)
 
 
 def create_app():
@@ -395,7 +367,8 @@ def create_app():
     )
     mcp.tool(annotations=ToolAnnotations(read_only_hint=False, destructive_hint=True,
                                        idempotent_hint=True, open_world_hint=True))(set_presentation_style)
-    mcp.tool()(generate_presentation)
+    mcp.tool(annotations=ToolAnnotations(read_only_hint=False, destructive_hint=False,
+                                       idempotent_hint=False, open_world_hint=True))(generate_presentation)
     mcp.tool(annotations=ToolAnnotations(read_only_hint=True, destructive_hint=False,
                                        idempotent_hint=True, open_world_hint=True))(get_presentation)
     mcp.tool(annotations=ToolAnnotations(read_only_hint=False, destructive_hint=True,
@@ -452,6 +425,7 @@ def create_app():
         return JSONResponse({"resource": provider.resource, "authorization_servers": [base_url],
                              "scopes_supported": [SCOPE], "bearer_methods_supported": ["header"]})
 
+    configure_logging()
     app = mcp.streamable_http_app(streamable_http_path="/mcp", json_response=True,
                                    stateless_http=True, host=os.getenv("HOST", "0.0.0.0"))
     # This SDK version validates PKCE/client/redirect/scope but does not check

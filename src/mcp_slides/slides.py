@@ -6,6 +6,12 @@ from googleapiclient.discovery import build
 from .layouts import content_boxes, color_role, decoration_boxes, DECORATION_COLOR
 from .outline import validate_outline
 from . import gradients
+from .observability import operation
+
+
+class DeckCreationError(RuntimeError):
+    """Safe recovery guidance; Google may already have committed the write."""
+
 
 def rgb(hex_color: str) -> dict[str, float]:
     return dict(zip(("red", "green", "blue"),
@@ -122,10 +128,7 @@ def create_deck(creds: Credentials, outline: dict[str, Any], *,
     outline = validate_outline(outline, len(outline["slides"]))
     gradient_url = (publish_gradient('#' + palette['background'], '#' + palette['gradient_color'])
                     if palette.get('gradient', False) else None)
-    service = build("slides", "v1", credentials=creds, cache_discovery=False)
     title = outline["title"]
-    presentation = service.presentations().create(body={"title": title}).execute()
-    presentation_id = presentation["presentationId"]
 
     requests: list[dict[str, Any]] = [
         {"createSlide": {"objectId": "mvp_slide_0", "slideLayoutReference": {"predefinedLayout": "BLANK"}}},
@@ -149,24 +152,39 @@ def create_deck(creds: Credentials, outline: dict[str, Any], *,
     for index, slide in enumerate(outline["slides"], start=1):
         requests.extend(content_slide_requests(slide, index, palette, gradient_url=gradient_url))
 
+    # Finish deterministic rendering before creating anything in Drive.
+    service = build("slides", "v1", credentials=creds, cache_discovery=False)
+    try:
+        with operation("google_create_empty"):
+            presentation = service.presentations().create(body={"title": title}).execute(num_retries=0)
+            presentation_id = presentation["presentationId"]
+    except Exception:
+        raise DeckCreationError(
+            "Google Slides creation could not be confirmed. A deck may already exist. "
+            "Check your Google Drive for the requested title before retrying to avoid duplicates."
+        ) from None
+
     if requests:
         try:
             # A newly created presentation can already contain a starter slide.
             # Read its actual IDs; remove those slides after adding our content,
             # in the same batch, so only the requested slides remain.
-            initial = service.presentations().get(
-                presentationId=presentation_id, fields="slides(objectId)",
-            ).execute()
+            with operation("google_read_initial"):
+                initial = service.presentations().get(
+                    presentationId=presentation_id, fields="slides(objectId)",
+                ).execute(num_retries=2)
             requests.extend(
                 {"deleteObject": {"objectId": slide["objectId"]}}
                 for slide in initial.get("slides", [])
             )
-            service.presentations().batchUpdate(
-                presentationId=presentation_id, body={"requests": requests},
-            ).execute()
+            with operation("google_populate"):
+                service.presentations().batchUpdate(
+                    presentationId=presentation_id, body={"requests": requests},
+                ).execute(num_retries=0)
         except Exception:
-            raise RuntimeError(
-                "A deck was created but could not be populated. Check it before retrying: "
+            raise DeckCreationError(
+                "A deck was created but population could not be confirmed. "
+                "It may be empty or complete. Check it before retrying: "
                 f"https://docs.google.com/presentation/d/{presentation_id}/edit"
             ) from None
 

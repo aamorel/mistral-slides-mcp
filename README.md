@@ -36,10 +36,63 @@ docs/                 User guide, auth, capabilities, assignment and checklist
 docs/history/         Investigation and implementation history
 ```
 
-The application is a single Python package. `server.py` exposes the tools;
-`oauth.py` and `auth.py` handle identity and credentials; the presentation modules
-handle generation, layout, reading, editing and styling. `pages.py` serves the
-public and connection pages. `usage.py` bounds paid provider calls.
+## Architecture and end-to-end flow
+
+```mermaid
+flowchart TD
+    Client[Vibe / MCP client] --> MCP[server.py: schemas, identity, tool responses]
+    MCP --> Service[presentation_service.py: creation workflow]
+    Service --> Content[outline.py: Mistral + strict validation]
+    Service --> Images[backgrounds.py / gradients.py: temporary images]
+    Service --> Render[slides.py / layouts.py: deterministic rendering]
+    Render --> Google[Google Slides API]
+    MCP --> Mutations[editing.py / insertion.py / styling.py]
+    Mutations --> Google
+    MCP --> Auth[oauth.py / auth.py: OAuth + connection credentials]
+    Service --> Prefs[preferences.py: connection style]
+    Auth --> DB[(SQLite: credentials, preferences, usage, temporary images)]
+    Prefs --> DB
+```
+
+For “Make me three slides about AI agents,” the MCP layer validates the brief and
+loads the authenticated connection's credentials before spending any model quota.
+The presentation service loads saved styling, requests exactly three structured
+content slides, and validates types, lengths and counts. Invalid model output gets
+one additional attempt. It then generates and temporarily publishes a cover image.
+The renderer builds the Google requests before creating a deck, then populates it
+in one batch, removing any starter slides in that batch. The result contains the
+exact Google URL, three content slides **plus one cover**, and applied styling.
+Temporary images are cleaned up afterwards, with expiry as a backstop.
+
+Read the code in that order. `layouts.py` contains geometry; `slides.py` turns
+validated content into API requests; `presentation_service.py` owns creation
+sequencing and safe errors. Existing-deck operations have their own service
+functions and require a current Google revision before writing. Auth and storage
+remain together in `auth.py` for this small pilot; there is no repository layer
+or dependency-injection framework.
+
+## MCP interface and design choices
+
+| User intent | Tool(s) |
+| --- | --- |
+| Create a new deck | `generate_presentation` |
+| Inspect current text, IDs and revision | `get_presentation` |
+| Revise one slide's supported text | `edit_slide` |
+| Insert one content slide | `add_slide` |
+| Change this deck's appearance | `set_presentation_style` |
+| Inspect, save or reset future defaults | `get_default_style`, `set_default_style`, `reset_default_style` |
+
+Eight tools are a deliberate breadth tradeoff: five deck operations and three
+preference operations. None exposes rendering primitives, model calls or Google
+batch requests. Existing names are preserved for connected clients. A smaller
+future interface could consolidate preference management, but would need a clear
+migration. Tool descriptions specify prerequisites, supported structures, side
+effects and retry behavior; creation and insertion are explicitly non-idempotent.
+
+Fixed layouts and strict text budgets make generation predictable and editing
+bounded. A generated cover remains required: image failure stops before deck
+creation, rather than silently changing the requested output. Google credentials
+are used per connection; no shared Drive identity is used.
 
 Investigation tools are preserved for learning and reproducibility, outside the
 installed package. They are not used by Railway. See their
@@ -77,6 +130,63 @@ with each connection isolated. Authentication is frozen for the pilot; see
 [the auth reference](docs/auth.md) for the complete flow, Google Console setup,
 access rules, token lifecycle, storage tradeoffs, and troubleshooting.
 
+## Reliability and failure handling
+
+| Failure | Behavior / recovery |
+| --- | --- |
+| Invalid tool arguments or missing Google connection | Reject before paid generation. Reconnect when instructed. |
+| Malformed model output | Strict schema validation; at most two attempts total. No deck is created on exhaustion. |
+| Image generation / download / publication failure | Stop before creating a deck; return a safe error. Images have format, size and dimension limits. |
+| Google read fails transiently | At most two SDK retries. No mutation is replayed. |
+| Creation response is lost | Report that a deck may exist; check Drive for the requested title before retrying. |
+| Population fails after a known deck ID | Return the recovery URL. The deck may be empty or complete; inspect before retrying. |
+| Stale revision / uncertain edit | Reject or report uncertainty; reread before another mutation. |
+| Temporary image cleanup fails | Preserve the operation's result; log cleanup failure. Expired assets become unavailable and are purged on subsequent database access. |
+
+Mistral outline/edit calls use a 60-second SDK timeout; image generation uses
+120 seconds and image download 30 seconds. The pinned Google API client uses a
+60-second HTTP socket timeout. These are provider/transport bounds, **not a total
+end-to-end deadline**. Reads may retry; Google writes and paid SDK calls do not.
+A disconnected client or timeout does not prove that Google stopped processing.
+There is no automatic deletion of a possibly completed deck and no cross-request
+idempotency key yet.
+
+Application diagnostics use stable key/value events with server-generated
+`request_id`, stage, outcome, elapsed time and exception class. HTTP responses
+include `X-Request-ID`. Creation logs the returned URL's SHA-256 for comparison
+without logging the URL. Prompts, model output, credentials, query strings and
+raw upstream exceptions are excluded from these events. HTTP-client and MCP
+INFO logs that could expose OAuth URLs or private recovery links are suppressed;
+Google retry warnings that include private URLs/bodies are also suppressed;
+Uvicorn access logs are disabled. Avoid enabling verbose provider logging.
+
+## Security and known limitations
+
+The pilot uses PKCE, per-connection token storage and account admission rules.
+Connector tokens are hashed; Google credentials are plaintext in the private
+SQLite volume. Protect volume access and backups. Revoking a connection removes
+its local credentials, preferences and temporary images; it does not delete decks
+or revoke Google consent upstream. Temporary image URLs are short-lived bearer
+URLs so Google can fetch them. Source text goes to Mistral; it is not retained as
+a generation brief. See [auth](docs/auth.md) for the complete security boundary.
+
+One process and one persistent volume are required. There is no worker queue,
+full-deck visual verification, arbitrary template editing, or guarantee of model
+factual accuracy. “Three slides” currently means three content slides plus a
+cover. Live provider acceptance and screenshots/demo recording remain release
+checks, not claims made by the mocked test suite.
+
+## What I would build next for production
+
+1. Persist creation jobs and idempotency keys so client retries resume or recover
+   a result without duplicate decks; add a total job deadline and reconciliation.
+2. Add an explicit plain-cover fallback policy for image outages, with a visible
+   warning and tests, if the product accepts that change.
+3. Encrypt Google credentials with managed keys; add backup/restore exercises and
+   shared storage before scaling beyond one instance.
+4. Track provider latency, failure rates and spend per operation; add a repeatable
+   live canary and visual regression examples for the supported layouts.
+
 ## Pilot usage controls
 
 All users consume the operator's Mistral API key. The defaults allow **100 paid
@@ -109,8 +219,11 @@ uv run python -m unittest discover -s tests -v
 ```
 
 Tests mock Google and Mistral; the protocol test opens a temporary localhost port.
-They cover tool behavior, OAuth, account isolation, usage limits, and presentation
-preservation. Live Vibe/Google acceptance is tracked separately in the
+They cover tool behavior, OAuth, account isolation, usage limits, presentation
+preservation, pre-write rendering failures, uncertain writes and safe diagnostics.
+[CI](.github/workflows/tests.yml) installs from the lockfile and runs the suite.
+The protocol test exercises discovery and invocation through real HTTP with mocked
+providers; it is not a live Mistral/Google end-to-end test. Live Vibe/Google acceptance is tracked separately in the
 [submission checklist](docs/submission-checklist.md).
 
 ## Documentation

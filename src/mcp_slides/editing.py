@@ -6,6 +6,7 @@ import os
 from typing import Any
 
 from googleapiclient.discovery import build
+from .observability import operation
 from googleapiclient.errors import HttpError
 from mistralai.client import Mistral
 from . import usage
@@ -108,7 +109,8 @@ def normalize_element(element: dict, grouped: bool = False) -> dict:
 def read_deck(creds: Any, presentation_id: str) -> tuple[Any, dict, dict]:
     service = build("slides", "v1", credentials=creds, cache_discovery=False)
     try:
-        raw = service.presentations().get(presentationId=presentation_id).execute()
+        with operation("google_read"):
+            raw = service.presentations().get(presentationId=presentation_id).execute(num_retries=2)
     except HttpError as exc:
         if exc.resp.status in (403, 404):
             raise EditError("Deck unavailable. Check the ID and connected Google account; this connector cannot access every file in Drive.") from None

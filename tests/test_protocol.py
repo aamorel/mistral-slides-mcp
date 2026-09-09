@@ -51,6 +51,8 @@ class ProtocolTests(unittest.IsolatedAsyncioTestCase):
                         discovered = {t.name: t for t in tools.tools}
                         self.assertEqual(set(discovered), {'generate_presentation', 'get_presentation', 'edit_slide', 'add_slide', 'get_default_style', 'set_default_style', 'reset_default_style', 'set_presentation_style'})
                         self.assertTrue(discovered['get_presentation'].annotations.read_only_hint)
+                        self.assertFalse(discovered['generate_presentation'].annotations.idempotent_hint)
+                        self.assertFalse(discovered['generate_presentation'].annotations.destructive_hint)
                         self.assertFalse(discovered['edit_slide'].annotations.read_only_hint)
                         self.assertFalse(discovered['add_slide'].annotations.read_only_hint)
                         self.assertFalse(discovered['add_slide'].annotations.idempotent_hint)
@@ -95,6 +97,8 @@ class ProtocolTests(unittest.IsolatedAsyncioTestCase):
                         diagnostic = '\n'.join(logs.output)
                         self.assertIn(hashlib.sha256(RESULT['presentation_url'].encode()).hexdigest(), diagnostic)
                         self.assertNotIn(RESULT['presentation_url'], diagnostic)
+                        self.assertIn('stage=outline outcome=ok', diagnostic)
+                        self.assertNotIn('request_id=local', diagnostic)
                         self.assertFalse(result.is_error)
                         self.assertEqual(result.structured_content, RESULT)
                         text_outputs = [part.text for part in result.content if part.type == 'text']
