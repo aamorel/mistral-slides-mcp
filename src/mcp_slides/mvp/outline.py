@@ -12,6 +12,27 @@ from mistralai.client import Mistral
 DEFAULT_MODEL = "mistral-medium-latest"
 
 
+SLIDE_SCHEMA_RULES = """Each slide must use exactly one of these structures:
+- {"type":"bullets", "title":"string", "bullets":["string", ...]}
+- {"type":"key_message", "title":"string", "message":"string"}
+- {"type":"comparison", "title":"string", "left":{"heading":"string", "bullets":["string", ...]}, "right":{"heading":"string", "bullets":["string", ...]}}
+- {"type":"steps", "title":"string", "steps":["string", ...]}
+
+Rules:
+- Choose types to suit the material in both topic and content mode. Use a key
+  message for one takeaway, bullets for supporting points, comparison for two
+  alternatives, and steps for an ordered process. Do not force variety or invent
+  comparisons/processes absent from source material. Honor requested types in instructions.
+- Titles: at most 80 characters. Key message: at most 180 characters.
+- Bullets: 1–5 items, at most 140 characters each and 420 combined.
+- Steps: 2–5 items, at most 100 characters each and 350 combined. No numbering in text.
+- Each comparison side: heading at most 40 characters, 1–3 bullets of at most
+  80 characters each and 180 combined. The two sides need not have equal counts.
+- All text must be nonempty, single-line plain text. No markdown or bullet prefixes.
+- No extra fields, commentary, Google API calls, or layout coordinates.
+"""
+
+
 def build_prompt(
     topic: str | None, slide_count: int, audience: str | None, tone: str | None,
     *, basis: str = "topic", source_content: str | None = None,
@@ -27,25 +48,8 @@ def build_prompt(
 Return only a valid JSON object for a short slide presentation.
 
 Schema: {{"title":"string", "slides":[slide, ...]}}
-Each slide must use exactly one of these structures:
-- {{"type":"bullets", "title":"string", "bullets":["string", ...]}}
-- {{"type":"key_message", "title":"string", "message":"string"}}
-- {{"type":"comparison", "title":"string", "left":{{"heading":"string", "bullets":["string", ...]}}, "right":{{"heading":"string", "bullets":["string", ...]}}}}
-- {{"type":"steps", "title":"string", "steps":["string", ...]}}
-
-Rules:
+{SLIDE_SCHEMA_RULES}
 - Produce exactly {slide_count} content slides; the renderer adds the cover.
-- Choose types to suit the material in both topic and content mode. Use a key
-  message for one takeaway, bullets for supporting points, comparison for two
-  alternatives, and steps for an ordered process. Do not force variety or invent
-  comparisons/processes absent from source material. Honor requested types in instructions.
-- Titles: at most 80 characters. Key message: at most 180 characters.
-- Bullets: 1–5 items, at most 140 characters each and 420 combined.
-- Steps: 2–5 items, at most 100 characters each and 350 combined. No numbering in text.
-- Each comparison side: heading at most 40 characters, 1–3 bullets of at most
-  80 characters each and 180 combined. The two sides need not have equal counts.
-- All text must be nonempty, single-line plain text. No markdown or bullet prefixes.
-- No extra fields, commentary, Google API calls, or layout coordinates.
 
 Presentation brief (JSON):
 {brief}

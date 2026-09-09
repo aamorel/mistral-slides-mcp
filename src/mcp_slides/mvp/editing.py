@@ -18,6 +18,7 @@ LIMITATIONS = [
     "Only original recognized ungrouped text boxes can be edited, including headings, comparisons, messages and steps.",
     "edit_slide preserves paragraph count and formatting; apply_default_style separately applies default colors/font to supported slides.",
     "Images, charts, tables, groups, and mixed-style text are not editable.",
+    "add_slide inserts one new content slide; edit_slide cannot add/remove items or change layouts. Never regenerate a replacement deck for an unsupported edit.",
     "Original sources and generation instructions are not stored; supply needed context again.",
 ]
 

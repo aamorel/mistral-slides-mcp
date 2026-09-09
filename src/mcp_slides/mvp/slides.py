@@ -51,6 +51,42 @@ def insert_text_request(object_id: str, text: str) -> dict[str, Any]:
     }
 
 
+def content_slide_requests(slide: dict, index: int, palette: dict, *, insertion_index: int | None = None) -> list[dict]:
+    """Build only a new content slide; never mutate existing objects."""
+    slide = validate_outline({"title": "Content", "slides": [slide]}, 1)["slides"][0]
+    slide_id = f"mvp_slide_{index}"
+    requests = []
+    requests.extend([
+        {"createSlide": {"objectId": slide_id, "slideLayoutReference": {"predefinedLayout": "BLANK"}}},
+        {"updatePageProperties": {"objectId": slide_id,
+            "pageProperties": {"pageBackgroundFill": {"solidFill": {
+                "color": {"rgbColor": rgb(palette["background"])}, "alpha": 1}}},
+            "fields": "pageBackgroundFill"}},
+    ])
+    for role, text, geometry, size, bullet_style in content_boxes(slide):
+        object_id = f"mvp_{role}_{index}"
+        color = color_role(object_id)
+        requests.extend([
+            create_text_box_request(object_id, slide_id, *geometry),
+            insert_text_request(object_id, text),
+            {"updateTextStyle": {"objectId": object_id, "textRange": {"type": "ALL"},
+                "style": {"fontSize": {"magnitude": size, "unit": "PT"},
+                    "fontFamily": palette["font_family"], "bold": color == "title",
+                    "foregroundColor": {"opaqueColor": {"rgbColor": rgb(palette[color])}}},
+                "fields": "fontSize,fontFamily,bold,foregroundColor"}},
+            {"updateParagraphStyle": {"objectId": object_id, "textRange": {"type": "ALL"},
+                "style": {"lineSpacing": 110, "spaceAbove": {"magnitude": 0, "unit": "PT"},
+                    "spaceBelow": {"magnitude": 8 if bullet_style else 0, "unit": "PT"}},
+                "fields": "lineSpacing,spaceAbove,spaceBelow"}},
+        ])
+        if bullet_style:
+            requests.append({"createParagraphBullets": {"objectId": object_id,
+                "textRange": {"type": "ALL"}, "bulletPreset": bullet_style}})
+    if insertion_index is not None:
+        requests[0]["createSlide"]["insertionIndex"] = insertion_index
+    return requests
+
+
 def create_deck(creds: Credentials, outline: dict[str, Any], *,
                 palette: dict, cover_image_url: str) -> dict[str, Any]:
     outline = validate_outline(outline, len(outline["slides"]))
@@ -78,33 +114,7 @@ def create_deck(creds: Credentials, outline: dict[str, Any], *,
             "fields": "fontFamily,fontSize,bold,foregroundColor"}},
     ]
     for index, slide in enumerate(outline["slides"], start=1):
-        slide_id = f"mvp_slide_{index}"
-        requests.extend([
-            {"createSlide": {"objectId": slide_id, "slideLayoutReference": {"predefinedLayout": "BLANK"}}},
-            {"updatePageProperties": {"objectId": slide_id,
-                "pageProperties": {"pageBackgroundFill": {"solidFill": {
-                    "color": {"rgbColor": rgb(palette["background"])}, "alpha": 1}}},
-                "fields": "pageBackgroundFill"}},
-        ])
-        for role, text, geometry, size, bullet_style in content_boxes(slide):
-            object_id = f"mvp_{role}_{index}"
-            color = color_role(object_id)
-            requests.extend([
-                create_text_box_request(object_id, slide_id, *geometry),
-                insert_text_request(object_id, text),
-                {"updateTextStyle": {"objectId": object_id, "textRange": {"type": "ALL"},
-                    "style": {"fontSize": {"magnitude": size, "unit": "PT"},
-                        "fontFamily": palette["font_family"], "bold": color == "title",
-                        "foregroundColor": {"opaqueColor": {"rgbColor": rgb(palette[color])}}},
-                    "fields": "fontSize,fontFamily,bold,foregroundColor"}},
-                {"updateParagraphStyle": {"objectId": object_id, "textRange": {"type": "ALL"},
-                    "style": {"lineSpacing": 110, "spaceAbove": {"magnitude": 0, "unit": "PT"},
-                        "spaceBelow": {"magnitude": 8 if bullet_style else 0, "unit": "PT"}},
-                    "fields": "lineSpacing,spaceAbove,spaceBelow"}},
-            ])
-            if bullet_style:
-                requests.append({"createParagraphBullets": {"objectId": object_id,
-                    "textRange": {"type": "ALL"}, "bulletPreset": bullet_style}})
+        requests.extend(content_slide_requests(slide, index, palette))
 
     if requests:
         try:

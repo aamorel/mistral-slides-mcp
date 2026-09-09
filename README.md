@@ -1,6 +1,6 @@
 # MCP Slides MVP
 
-Seven MCP tools create, read, and revise Google Slides presentations and manage saved default styles.
+Eight MCP tools create, read, and revise Google Slides presentations and manage saved default styles.
 Generation uses a topic or supplied content, Mistral drafts the text, and
 **each authenticated user's own Google account** provides access and storage.
 
@@ -279,12 +279,12 @@ validation, and browser-bound OAuth state remain enforced.
 ## Read and revise an existing slide
 
 The deck workflow uses `generate_presentation`, `get_presentation`, and
-`edit_slide`, and `apply_default_style`; three additional tools manage saved styles. Reading is annotated as read-only; editing
+`edit_slide`, `add_slide`, and `apply_default_style`; three additional tools manage saved styles. Reading is annotated as read-only; editing
 is explicitly a mutation. The existing Google `drive.file` permission remains
 sufficient for accessible decks. The internal connector scope `slides.generate`
-retains its name for compatibility and covers all seven tools; it is not a
+retains its name for compatibility and covers all eight tools; it is not a
 separate read-only permission. The consent page describes creation, reading and
-text revision and applying default colors/font.
+text revision, adding content slides, and applying default colors/font.
 
 `get_presentation` is a separate tool because reading is useful on its own
 ("What's on slide two?") and helps Vibe choose an edit. It provides the current
@@ -336,6 +336,37 @@ source text is persisted: supply any needed facts and constraints again. Without
 additional source text, Mistral is instructed to stay grounded in the current
 slide. These are model instructions, not factual verification.
 
+### Adding a slide to an existing deck
+
+Use `get_presentation`, then `add_slide(presentation_id, expected_revision_id,
+instructions, source_content?, after_slide_id?)`. Omitting `after_slide_id` appends;
+supplying an existing ID inserts immediately after it. Positions include the cover.
+Each call adds one content slide, using the same four layouts and text budgets as
+generation. It keeps the same URL and preserves all existing elements and manual
+edits. It does not create a cover, regenerate the deck, or change existing layouts.
+The generation limit of six content slides does not cap later additions.
+
+The new slide inherits colors/font from the closest supported content slide.
+If no readable supported style exists, it uses the connection's current saved
+default and returns a warning that the new slide may differ. The assistant must
+report that warning. Defaults are loaded only when this fallback is needed.
+Only the original 720 × 405 point page size is supported; deck text context is
+limited to 60,000 serialized characters. Original source briefs are not stored.
+
+The server validates the new slide and sends creation, text and styling together
+with a required revision check. Existing object IDs are never write targets.
+Results include `status=added`, the same `presentation_url`, `slide_id`, one-based
+`position`, `total_slide_count`, new slide content, `style_source` and `warnings`.
+If a write is unconfirmed, the error identifies the expected new slide ID: reread
+and check it before deciding to retry. Never blindly retry a non-idempotent addition.
+
+Tool descriptions explicitly route wording to `edit_slide`, additions to
+`add_slide`, and saved style application to `apply_default_style`. They require
+checking the entire request before mutation: unsupported requirements must be
+explained and scope clarified, not silently discarded or tested by calling a tool.
+Failure never authorizes a replacement deck. Refresh client tool metadata after
+deployment; conversational adherence still requires live acceptance testing.
+
 Editing is deliberately narrow:
 
 - Only recognized original ungrouped text boxes (titles, bodies, key messages,
@@ -353,7 +384,7 @@ Editing is deliberately narrow:
   and bullet structure remain intact, and insertion occurs before deletion so
   neighboring text styling is retained. Shapes and their geometry are not
   rebuilt. Visual fit and live formatting still need manual verification.
-- No slide addition, removal, reordering, layout/design changes, image/chart/table
+- `edit_slide` does not add slides; use `add_slide` for that. No slide removal, reordering, layout/design changes, image/chart/table
   edits, notes edits, undo, or visual assessment. The assistant is instructed to
   explain unsupported requests. Mistral can also decline a request; unsupported
   and invalid proposals cause no write. Model IDs, paragraph counts and lengths
@@ -387,6 +418,15 @@ Refresh Vibe's connector tools after deployment, then:
 4. Change the deck after reading its revision, then submit an edit with that old
    revision. Confirm it is rejected and the manual change survives.
 5. Try an inaccessible deck from another Google account. Confirm access is denied.
+6. Ask “Add a slide about risks after slide two.” Confirm one slide is inserted,
+   the URL stays the same, and the original slides and cover remain unchanged.
+   Then revise the new slide's title and check that the revision succeeds.
+7. Change the saved default, then append a slide to the old deck. Confirm it
+   matches the existing readable style. For a deck without readable supported
+   style, confirm the saved-default fallback is explicitly reported.
+8. Ask “Add a slide with an image” or “Add another bullet to slide two.” Confirm
+   the assistant explains the limitation before calling a mutation tool and never
+   regenerates the deck as a fallback.
 
 Automated tests mock both providers; they do not substitute for these live checks.
 

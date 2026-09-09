@@ -1,7 +1,7 @@
 # Try the Google Slides connector
 
 Generate from a topic or your notes, customize your default colors and font,
-and revise wording through chat. Every new presentation uses your default style
+add slides to an existing presentation, and revise wording through chat. Every new presentation uses your default style
 automatically. Before customization, it uses white backgrounds, blue titles,
 charcoal body text, and Arial.
 
@@ -33,6 +33,13 @@ Unsupported slides are skipped and reported. Custom templates are not supported.
 
 After creating a deck, try: “Make slide two less technical.” The connector can
 revise supported text at the same link; it cannot rearrange slides or edit images.
+
+To extend the same deck, try: “Add a slide about risks after slide two” or
+“Append a conclusion using these notes.” One content slide is added per call;
+existing slides and the link are preserved. It matches readable existing colors
+and font, falling back to your current saved default with an explicit notice if
+needed. Adding images, removing/reordering slides, and changing existing layouts
+remain unsupported.
 
 **Before testing:** send me the Google email you’ll use so I can add you as a tester. Google may show an “app not verified” warning because this is a test app; continue only if you recognize this invitation and are comfortable granting access.
 

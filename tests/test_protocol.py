@@ -48,9 +48,27 @@ class ProtocolTests(unittest.IsolatedAsyncioTestCase):
                     async with Client(streamable_http_client(f'http://127.0.0.1:{port}/mcp', http_client=http)) as client:
                         tools = await client.list_tools()
                         discovered = {t.name: t for t in tools.tools}
-                        self.assertEqual(set(discovered), {'generate_presentation', 'get_presentation', 'edit_slide', 'get_default_style', 'set_default_style', 'reset_default_style', 'apply_default_style'})
+                        self.assertEqual(set(discovered), {'generate_presentation', 'get_presentation', 'edit_slide', 'add_slide', 'get_default_style', 'set_default_style', 'reset_default_style', 'apply_default_style'})
                         self.assertTrue(discovered['get_presentation'].annotations.read_only_hint)
                         self.assertFalse(discovered['edit_slide'].annotations.read_only_hint)
+                        self.assertFalse(discovered['add_slide'].annotations.read_only_hint)
+                        self.assertFalse(discovered['add_slide'].annotations.idempotent_hint)
+                        self.assertEqual(set(discovered['add_slide'].input_schema['required']),
+                                         {'presentation_id', 'expected_revision_id', 'instructions'})
+                        self.assertIn('NOT SUPPORTED', discovered['add_slide'].description)
+                        self.assertIn('Assess the ENTIRE request before calling', discovered['edit_slide'].description)
+                        with patch.object(server.insertion, 'add_deck_slide', return_value={'status': 'added'}) as add:
+                            for args in ({'presentation_id': 'deck1', 'instructions': 'Add risks'},
+                                         {'presentation_id': 'deck1', 'expected_revision_id': 'rev1', 'instructions': ' '},
+                                         {'presentation_id': 'deck1', 'expected_revision_id': 'rev1', 'instructions': 'Add', 'after_slide_id': 'bad id'}):
+                                self.assertTrue((await client.call_tool('add_slide', args)).is_error)
+                            add.assert_not_called()
+                            result = await client.call_tool('add_slide', {'presentation_id': 'deck1',
+                                'expected_revision_id': 'rev1', 'instructions': 'Add risks', 'after_slide_id': 'slide1',
+                                'source_content': 'Budget uncertain'})
+                            self.assertFalse(result.is_error)
+                            self.assertEqual(add.call_args.args[:6], ('alice', 'deck1', 'rev1', 'Add risks', 'Budget uncertain', 'slide1'))
+                        credentials.reset_mock()
                         self.assertFalse(discovered['apply_default_style'].annotations.read_only_hint)
                         schema = discovered['generate_presentation'].input_schema
                         self.assertEqual(schema['properties']['basis']['enum'], ['topic', 'content'])

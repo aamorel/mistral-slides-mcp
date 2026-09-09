@@ -8,13 +8,14 @@ submission work is tracked in [submission-plan.md](../../../submission-plan.md).
 
 ## Tools
 
-Seven tools are exposed:
+Eight tools are exposed:
 
 | Tool | Contract and purpose |
 | --- | --- |
 | `generate_presentation` | `topic?`, `slide_count=3`, `audience?`, `tone?`, `basis="topic"`, `source_content?`, `instructions?`. Creates a new deck. |
 | `get_presentation` | `presentation_id`. Reads current text, slide/element IDs, revision, text editability, style support, and formatting metadata. |
 | `edit_slide` | `presentation_id`, `slide_id`, `expected_revision_id`, `instructions`, `source_content?`. Revises supported text on one existing slide. |
+| `add_slide` | `presentation_id`, `expected_revision_id`, `instructions`, `source_content?`, `after_slide_id?`. Inserts one content slide into the existing deck; appends by default. |
 | `get_default_style` | No arguments. Returns the connection's current colors/font and readable Markdown summary. |
 | `set_default_style` | `settings`. Saves a complete validated default configuration; partial requests first read and merge existing settings. |
 | `reset_default_style` | No arguments. Restores the built-in default settings for the connection. |
@@ -78,11 +79,21 @@ renderer validates again before creating a Google file.
   paragraphs, linked text, and automatic text fields are unsupported.
 - Text edits preserve each box's paragraph/item count and surrounding formatting.
   They cannot add/remove bullets or steps, or convert an existing slide's layout.
-- Both mutation tools reread the deck and use Google's required revision check.
+- All deck mutation tools reread the deck and use Google's required revision check.
   Stale revisions prevent writes. Unconfirmed writes are not automatically retried;
   the caller must reread before deciding what to do next.
 - Text edits report updated/unchanged and exact changes. Style application reports
   applied/unsupported with skipped slides; neither implies visual verification.
+- `add_slide` inserts one content slide at the end or after an existing slide,
+  preserving existing objects, manual edits and the same URL. All four content
+  types are supported. Original 720 × 405 point page size is required; serialized
+  deck text context is capped at 60,000 characters. Later additions are not capped
+  by the six-content-slide generation limit.
+- Added slides match the nearest readable supported content slide's colors/font;
+  otherwise use the saved default and return a warning the assistant must report.
+  Added objects retain the naming convention required by text editing and styling.
+- Unconfirmed insertions identify the proposed slide ID for duplicate checks on
+  reread. No automatic retries or replacement generation.
 - Original briefs are not stored. Supply needed source facts and constraints again.
 
 ## Conversational UX
@@ -92,7 +103,7 @@ defaults without a create/edit menu, mandatory outline approval, or style select
 Ask only for missing required information or clarification of unsupported requests.
 
 After success, copy the returned URL verbatim and briefly invite relevant wording
-edits. Once per conversation, introduce default-style customization and its explicit
+edits or adding a content slide. Once per conversation, introduce default-style customization and its explicit
 application to an existing deck. Generation results include current style guidance
 so the assistant does not rely solely on cached metadata or old chat messages.
 Refresh tool metadata and use a fresh conversation when testing contract changes;
@@ -104,7 +115,7 @@ being asked.
 
 ## Validation and release constraints
 
-- Automated coverage: 49 passing tests covering schemas, API request construction,
+- Automated coverage: 56 tests covering schemas, API request construction,
   MCP discovery/invocation, authentication isolation, preferences, supported edits,
   style application, and revision/error handling.
 - A live Mistral text-generation check successfully produced all four types.
@@ -124,7 +135,7 @@ being asked.
 
 - More layouts, arbitrary visual design, templates, native theme imports,
   content-slide images, and image editing/regeneration.
-- Slide addition/removal/reordering, changing list counts, layout conversion,
+- Slide removal/reordering, changing list counts, layout conversion,
   arbitrary/rich text editing, speaker notes, undo, folder selection, and export.
 - Google-account-scoped preferences and persisted source briefs.
 - Broad public-launch features such as usage quotas and further credential-storage

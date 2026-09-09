@@ -22,7 +22,7 @@ from starlette.concurrency import run_in_threadpool
 from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
-from . import auth, outline, slides, editing, preferences, backgrounds, styling
+from . import auth, outline, slides, editing, preferences, backgrounds, styling, insertion
 from .oauth import GoogleOAuthProvider, SCOPE, ResourceTokenHandler
 
 STYLE_GUIDANCE = (
@@ -54,6 +54,10 @@ async def generate_presentation(
     concise question only if required topic/source content is missing or the
     request cannot be fulfilled within the supported limits. Editing applies
     only when the user requests changes to an existing presentation.
+    This tool ALWAYS creates a different presentation. Never use it to add slides
+    to or repair an existing deck. Use get_presentation then add_slide for additions,
+    edit_slide for wording, and apply_default_style for applying saved colors/font.
+    Unsupported edits and failed tool calls do not authorize replacement generation.
 
     Use basis="topic" to develop a presentation from a required topic.
     Use basis="content" to organize supplied material; source_content is required
@@ -98,8 +102,8 @@ async def generate_presentation(
     After the deck link, add one brief optional invitation in the user's language:
     'You can ask me to revise a slide—for example, make slide two less technical
     or shorten the conclusion.' Adapt examples to the actual deck; never refer
-    to a slide that does not exist. Offer wording changes only, not layout or
-    structural edits. Do not require a response or call editing tools until the
+    to a slide that does not exist. Offer wording changes or adding a content slide.
+    Do not offer arbitrary layout edits, require a response, or call editing tools until the
     user requests a revision. Do not add the invitation to the slide content.
     Use style_guidance from the result for current styling capabilities, even if
     older conversation messages describe other options.
@@ -288,6 +292,73 @@ async def get_presentation(presentation_id: PresentationId) -> dict[str, Any]:
         raise ToolError("Could not read the presentation. Check Google access and try again.") from None
 
 
+async def add_slide(
+    presentation_id: PresentationId,
+    expected_revision_id: Annotated[str, Field(min_length=1, max_length=500)],
+    instructions: Annotated[str, Field(min_length=1, max_length=2000)],
+    source_content: Annotated[str | None, Field(min_length=1, max_length=20000)] = None,
+    after_slide_id: SlideId | None = None,
+) -> dict[str, Any]:
+    """Add ONE new content slide to the EXISTING presentation at the same URL.
+
+    SUPPORTED: 'Add a slide about risks', 'Insert a comparison after slide two',
+    'Append a conclusion using these notes'. Omit after_slide_id to append;
+    otherwise use an existing slide ID to insert immediately after it. The cover
+    counts as slide one. First call get_presentation for current IDs/revision.
+    Use this tool directly when addition is requested; do not ask for confirmation
+    or regenerate the deck. Repeated additions require a fresh read each time.
+
+    New slides support a title plus: one key message (180 characters), 1–5 bullets
+    (140 each, 420 combined), two comparison columns (headings 40, 1–3 bullets
+    each, 80 each/180 per column), or 2–5 steps (100 each, 350 combined).
+    Titles are at most 80 characters. The model chooses the appropriate fixed
+    layout. Existing slides, manual edits, order and cover image are preserved.
+    Only the original 720 × 405 point page size is supported. Insertion is not
+    limited by the generation tool's six-content-slide limit; large deck context
+    may be rejected. One call adds exactly one slide, never a new cover.
+
+    NOT SUPPORTED: new images/charts/tables/notes, custom layouts, replacing a
+    slide, deleting/reordering existing slides, or combining insertion with edits
+    to existing slides in this call. For wording use edit_slide separately; for
+    applying saved colors/font use apply_default_style. Evaluate the whole request
+    BEFORE calling: explain unsupported requirements rather than trying a tool
+    that cannot satisfy them. Never silently omit requirements or substitute a
+    new deck. For mixed supported/unsupported requests, clarify scope first.
+
+    Current deck text supplies context. Pass relevant conversation/source facts
+    in source_content and constraints in instructions; original briefs are not
+    stored and this tool cannot fetch URLs/files. Ask for missing essential sources.
+    New slides inherit readable colors/font from the nearest supported content
+    slide. If none is readable, use the saved default and explicitly report the
+    returned warning that the new slide may differ. No arbitrary design matching
+    or visual verification is promised. Do not change saved defaults for insertion.
+
+    Report success only for status=added; copy presentation_url verbatim, describe
+    the new slide and position, and report any warnings. On stale revision reread
+    and reconsider. If insertion is unconfirmed, reread and check the reported
+    slide ID before any retry to avoid adding a duplicate. Never fall back to
+    generate_presentation after failure unless the user explicitly asks for a new deck.
+    """
+    if not instructions.strip() or not expected_revision_id.strip():
+        raise ToolError("Instructions and expected revision must not be blank.")
+    if source_content is not None and not source_content.strip():
+        raise ToolError("Source content must not be blank when supplied.")
+    creds = await connected_credentials()
+    subject = connection_subject()
+
+    def fallback_palette():
+        saved = preferences.get_style(subject)
+        return preferences.StyleSettings.model_validate(saved['settings']).palette()
+
+    try:
+        return await run_in_threadpool(insertion.add_deck_slide, creds, presentation_id,
+            expected_revision_id, instructions, source_content, after_slide_id, fallback_palette)
+    except editing.EditError as exc:
+        raise ToolError(str(exc)) from None
+    except Exception:
+        raise ToolError("Could not prepare the new slide. No insertion was sent to Google; try again later.") from None
+
+
 async def edit_slide(
     presentation_id: PresentationId,
     slide_id: SlideId,
@@ -296,6 +367,17 @@ async def edit_slide(
     source_content: Annotated[str | None, Field(min_length=1, max_length=20000)] = None,
 ) -> dict[str, Any]:
     """Revise supported text on ONE existing slide, updating the same deck URL.
+
+    SUPPORTED: rephrase, shorten, translate, change tone, or correct supplied facts
+    within existing editable text, with the SAME paragraph/bullet/step count.
+    Examples: 'Make slide two less technical', 'Correct the budget to €5,000'.
+    NOT SUPPORTED HERE: 'Add a slide' (use add_slide), 'Add another bullet',
+    'Turn bullets into a comparison', 'Replace the image', or 'Delete slide two'.
+    Adding/removing list items, layout conversion, images and slide deletion/moving
+    are unsupported by the editing flow. For saved colors/font use apply_default_style.
+    Assess the ENTIRE request before calling. If any requirement is unsupported,
+    explain the limitation and clarify scope; do not call this tool to test support,
+    silently drop that requirement, or generate a replacement presentation.
 
     First call get_presentation; use its slide_id and revision_id verbatim. Only
     editable=true original recognized text boxes are supported, including comparison
@@ -377,13 +459,18 @@ def create_app():
                       "Do not present a create/edit menu, ask for optional details, repeat a supplied topic, "
                       "or require an outline approval. Planning is only for users who request planning. "
                       "Clarify missing required topic/source material or unsupported requirements only. "
-                      "Read existing decks with get_presentation before editing one supported slide with edit_slide. "
+                      "Read existing decks with get_presentation before any mutation. "
+                      "Route wording changes with fixed item counts to edit_slide, new content slides to add_slide, "
+                      "and saved colors/font application to apply_default_style. "
+                      "Adding/removing list items, layout conversion, images, notes, deleting/moving slides are unsupported. "
+                      "Evaluate the entire request before calling a mutation tool; explain unsupported parts and clarify scope first. "
+                      "Never call a tool merely to test an explicitly unsupported request. "
                       "Acknowledge unsupported operations; never silently substitute deck creation for editing. "
                       "After successful generation, include the deck link and a brief optional invitation "
                       "to request wording revisions, with examples suited to the actual deck and user's language. "
                       "Do not ask for mandatory confirmation or start editing without a user request. "
                       "The invitation belongs in chat, not in the presentation. "
-                      "Always use the connection default colors/font; there are no named presets or per-deck overrides. "
+                      "New decks use default colors/font; added slides match readable existing style, with an explicitly reported default fallback. "
                       "Once per conversation after successful generation, "
                       "briefly offer customizing default colors/fonts for future decks. Use apply_default_style to apply defaults to an existing deck only when requested. "
                       "Copy presentation_url verbatim from a successful tool result. "
@@ -401,6 +488,9 @@ def create_app():
                                        idempotent_hint=True, open_world_hint=True))(get_presentation)
     mcp.tool(annotations=ToolAnnotations(read_only_hint=False, destructive_hint=True,
                                        idempotent_hint=False, open_world_hint=True))(edit_slide)
+
+    mcp.tool(annotations=ToolAnnotations(read_only_hint=False, destructive_hint=False,
+                                       idempotent_hint=False, open_world_hint=True))(add_slide)
 
     for function in (get_default_style,):
         mcp.tool(annotations=ToolAnnotations(read_only_hint=True, destructive_hint=False))(function)
