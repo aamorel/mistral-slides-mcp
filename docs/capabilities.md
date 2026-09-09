@@ -36,9 +36,9 @@ needed for partial style changes.
   does not retrieve conversation history, linked documents, or uploaded source
   files for text generation. The separate image-placement tool retrieves a fresh
   image attachment reference supplied by the assistant.
-- Each generation creates 1–6 content slides plus an automatic opening title
-  slide with a Mistral-generated background image. The default is four slides
-  total. The cover image is required; preparation failure prevents deck creation.
+- Each generation creates 1–6 total slides including an automatic opening title
+  slide with a Mistral-generated background image. The default is three slides
+  total (one title and two content slides); requesting one creates only the title slide. The cover image is required; preparation failure prevents deck creation.
 - Mistral selects suitable slide types from the material and honors requested
   types through `instructions`. Variety must not require invented source facts.
 - Strict schemas and text budgets constrain model output. The renderer controls

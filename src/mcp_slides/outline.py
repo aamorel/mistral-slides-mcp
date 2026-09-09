@@ -51,6 +51,7 @@ Return only a valid JSON object for a short slide presentation.
 Schema: {{"title":"string", "slides":[slide, ...]}}
 {SLIDE_SCHEMA_RULES}
 - Produce exactly {slide_count} content slides; the renderer adds the cover.
+- If zero content slides are requested, return an empty slides array and a title.
 
 Presentation brief (JSON):
 {brief}

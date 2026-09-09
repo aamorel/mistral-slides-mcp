@@ -127,6 +127,34 @@ class GenerationTests(unittest.TestCase):
                 self.assertEqual(sum('insertText' in r for r in requests), 13)
                 service.presentations.return_value.batchUpdate.assert_called_once()
 
+    def test_requested_total_includes_cover_through_generation(self):
+        for total in range(1, 7):
+            with self.subTest(total=total):
+                content = {'title': 'Demo', 'slides': OUTLINE['slides'] * (total - 1)}
+                model = MagicMock()
+                model.__enter__.return_value = model
+                model.chat.complete.return_value = SimpleNamespace(choices=[
+                    SimpleNamespace(message=SimpleNamespace(content=json.dumps(content)))])
+                google = MagicMock()
+                google.presentations.return_value.create.return_value.execute.return_value = {'presentationId': 'deck123'}
+                google.presentations.return_value.get.return_value.execute.return_value = {'slides': []}
+                with patch.dict(os.environ, ENV), \
+                     patch.object(server, 'get_access_token', return_value=SimpleNamespace(subject='user-a')), \
+                     patch.object(auth, 'load_credentials', return_value=MagicMock()), \
+                     patch.object(preferences, 'get_style', return_value={'settings': preferences.DEFAULT_STYLE.model_copy(update={'gradient': False}).model_dump()}), \
+                     patch.object(outline, 'Mistral', return_value=model), \
+                     patch.object(server.backgrounds, 'generate_image', return_value=b'png'), \
+                     patch.object(server.backgrounds, 'publish_image', return_value=('token', 'https://example.com/cover.png')), \
+                     patch.object(server.backgrounds, 'remove_image'), \
+                     patch.object(slides, 'build', return_value=google):
+                    result = asyncio.run(server.generate_presentation('Demo', slide_count=total))
+                self.assertEqual(result['total_slide_count'], total)
+                self.assertEqual(result['content_slide_count'], total - 1)
+                requests = google.presentations.return_value.batchUpdate.call_args.kwargs['body']['requests']
+                self.assertEqual([r['createSlide']['objectId'] for r in requests if 'createSlide' in r],
+                                 [f'mvp_slide_{i}' for i in range(total)])
+                self.assertIn('mvp_title_0', [r['insertText']['objectId'] for r in requests if 'insertText' in r])
+
     def test_old_database_and_refresh_persistence(self):
         with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {'TOKEN_DB_PATH': str(Path(temp) / 'tokens.db')}):
             db = auth.connect()

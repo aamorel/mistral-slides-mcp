@@ -35,16 +35,16 @@ from .observability import request_id, configure_logging
 
 async def generate_presentation(
     topic: Annotated[str | None, Field(min_length=1, max_length=1000)] = None,
-    slide_count: Annotated[int, Field(ge=1, le=6, strict=True)] = 3,
+    slide_count: Annotated[int, Field(ge=1, le=6, strict=True, description="Total slides including the title slide; 1 creates only the title slide.")] = 3,
     audience: Annotated[str | None, Field(max_length=300)] = None,
     tone: Annotated[str | None, Field(max_length=200)] = None,
     basis: Literal["topic", "content"] = "topic",
     source_content: Annotated[str | None, Field(min_length=1, max_length=20000)] = None,
     instructions: Annotated[str | None, Field(max_length=2000)] = None,
 ) -> dict[str, Any]:
-    """Create a NEW deck with 1–6 content slides plus a generated image cover.
+    """Create a NEW deck with 1–6 total slides, including a generated image cover.
 
-    Defaults: 3 content slides, topic basis, saved colors/font. Topic basis requires
+    Defaults: 3 total slides (one cover and two content slides), topic basis, saved colors/font. Topic basis requires
     topic; content basis requires actual source_content and accepts optional topic
     framing. Pass relevant source facts and constraints; this tool cannot read chat
     history or fetch files/URLs. Content mode preserves claims unless instructions
@@ -197,7 +197,8 @@ async def get_presentation(presentation_id: PresentationId) -> dict[str, Any]:
     """Read a deck's current text, ordered slide/element IDs, revision and style support.
 
     Accepts a Google Slides URL or ID accessible to this connection. Resolve slide
-    numbers from current positions. Images/charts/tables/groups are listed but not
+    numbers from current positions, counting the title slide as slide 1.
+    Slide 2 is the first content slide in a newly generated deck. Images/charts/tables/groups are listed but not
     visually interpreted; notes, masters and visual layout assessment are omitted.
     Missing revision_id means mutation is unavailable. Style support is exposed in
     each slide's style metadata (separate from text editability).
@@ -292,7 +293,10 @@ async def edit_slide(
 ) -> dict[str, Any]:
     """Revise supported text on ONE existing slide, preserving its URL and layout.
 
-    Requires a current slide_id and revision. Supports rephrasing, shortening,
+    Requires a current slide_id and revision. Resolve numbered slides using
+    get_presentation positions, including the title slide as slide 1; slide 2
+    is the first content slide in a newly generated deck. Never infer IDs from numbers.
+    Supports rephrasing, shortening,
     translation, tone changes and supplied factual corrections. Preserves paragraph,
     bullet and step counts, formatting and other slides. No item addition/removal,
     layout conversion, images, charts, tables, notes, deletion or reordering.
@@ -371,7 +375,7 @@ def create_app():
     mcp = MCPServer(
         "mcp-slides", instructions=("Create Google Slides presentations in the authenticated user's own Google Drive. "
                       "For a creation request with a topic or source content, call generate_presentation directly. "
-                      "A broad topic such as phones is sufficient. Use 3 content slides plus an image cover and the saved default style when unspecified. "
+                      "A broad topic such as phones is sufficient. Use 3 total slides including an image cover and the saved default style when unspecified. "
                       "Do not present a create/edit menu, ask for optional details, repeat a supplied topic, "
                       "or require an outline approval. Planning is only for users who request planning. "
                       "Clarify missing required topic/source material or unsupported requirements only. "

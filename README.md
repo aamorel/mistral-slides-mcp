@@ -62,12 +62,12 @@ flowchart TD
 
 For “Make me three slides about AI agents,” the MCP layer validates the brief and
 loads the authenticated connection's credentials before spending any model quota.
-The presentation service loads saved styling, requests exactly three structured
+The presentation service loads saved styling, requests exactly two structured
 content slides, and validates types, lengths and counts. Invalid model output gets
 one additional attempt. It then generates and temporarily publishes a cover image.
 The renderer builds the Google requests before creating a deck, then populates it
 in one batch, removing any starter slides in that batch. The result contains the
-exact Google URL, three content slides **plus one cover**, and applied styling.
+exact Google URL, three slides total: **one cover and two content slides**, and applied styling.
 Temporary images are cleaned up afterwards, with expiry as a backstop.
 
 Read the code in that order. `layouts.py` contains geometry; `slides.py` turns
@@ -184,8 +184,7 @@ does not remove images already inserted in Google Slides. See [auth](docs/auth.m
 
 One process and one persistent volume are required. There is no worker queue,
 full-deck visual verification, arbitrary template editing, or guarantee of model
-factual accuracy. “Three slides” currently means three content slides plus a
-cover. Live provider acceptance and screenshots/demo recording remain release
+factual accuracy. “Three slides” means one cover and two content slides. Live provider acceptance and screenshots/demo recording remain release
 checks, not claims made by the mocked test suite.
 
 ## What I would build next for production

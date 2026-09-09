@@ -124,7 +124,7 @@ Google and Mistral; these checks exercise the real providers and conversation.
 
 - [ ] Generate from a topic and open the exact returned link in the correct Drive.
 - [ ] Ask “Create a presentation about phones” with no other details. Confirm
-  immediate generation of three content slides plus one image cover using saved defaults without a create/edit menu or
+  immediate generation of three total slides including one image cover using saved defaults without a create/edit menu or
   questions about optional inputs. Separately verify an explicit planning request
   stays in conversation until creation is requested.
 - [ ] Save a default style, generate a deck, and verify it

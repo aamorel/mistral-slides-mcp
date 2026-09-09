@@ -40,7 +40,7 @@ async def create_presentation(
     try:
         with operation("outline"):
             content = await run_in_threadpool(
-                outline.generate_outline, topic.strip() if topic else None, slide_count, audience, tone,
+                outline.generate_outline, topic.strip() if topic else None, slide_count - 1, audience, tone,
                 os.getenv("MISTRAL_MODEL", outline.DEFAULT_MODEL),
                 basis=basis, source_content=source_content, instructions=instructions,
             )

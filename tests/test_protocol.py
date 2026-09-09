@@ -111,7 +111,7 @@ class ProtocolTests(unittest.IsolatedAsyncioTestCase):
                         self.assertEqual(render.call_args.args[0], 'alice')
                         self.assertEqual(render.call_args.kwargs['palette'], preferences.DEFAULT_STYLE.palette())
                         self.assertEqual(render.call_args.kwargs['cover_image_url'], 'https://example.com/cover.png')
-                        self.assertEqual(generate.call_args.args[:4], ('Demo', 3, None, None))
+                        self.assertEqual(generate.call_args.args[:4], ('Demo', 2, None, None))
                         self.assertEqual(generate.call_args.kwargs,
                                          {'basis': 'topic', 'source_content': None, 'instructions': None})
                         for framing in ({}, {'topic': 'Pilot recommendation'}):
@@ -122,7 +122,7 @@ class ProtocolTests(unittest.IsolatedAsyncioTestCase):
                             self.assertFalse(result.is_error)
                             self.assertEqual(result.structured_content, RESULT)
                             self.assertEqual(generate.call_args.args[:4],
-                                             (framing.get('topic'), 1, 'Managers', 'Direct'))
+                                             (framing.get('topic'), 0, 'Managers', 'Direct'))
                             self.assertEqual(generate.call_args.kwargs, {
                                 'basis': 'content', 'source_content': 'Pilot budget is €5,000.',
                                 'instructions': 'Lead with the decision.'})

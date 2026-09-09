@@ -81,6 +81,27 @@ class EditingTests(unittest.TestCase):
         for element in (mixed, linked, box('custom', ['Custom']), box('mvp_title_1', [''])):
             self.assertFalse(editing.normalize_element(element)['editable'])
 
+    def test_slide_two_edits_first_content_and_preserves_cover(self):
+        deck = copy.deepcopy(DECK)
+        deck['slides'].insert(0, {'objectId': 'mvp_slide_0', 'pageElements': [
+            box('mvp_title_0', ['Cover']), {'objectId': 'mvp_cover_image', 'image': {}}]})
+        service = self.service(deck)
+        with patch.object(editing, 'build', return_value=service), \
+             patch.object(editing, 'propose_edit', return_value=[
+                 {'element_id': 'mvp_title_1', 'paragraphs': ['Revised content title']}]) as propose:
+            current = editing.get_deck('alice', 'deck1')
+            target = next(slide for slide in current['slides'] if slide['position'] == 2)
+            self.assertEqual(target['slide_id'], 'mvp_slide_1')
+            result = editing.edit_deck_slide('alice', 'deck1', target['slide_id'],
+                                            current['revision_id'], 'Revise slide 2', None)
+        self.assertEqual(result['position'], 2)
+        self.assertEqual(propose.call_args.args[0]['slide_id'], 'mvp_slide_1')
+        requests = service.presentations.return_value.batchUpdate.call_args.kwargs['body']['requests']
+        self.assertTrue(requests)
+        for request in requests:
+            self.assertIn(next(iter(request)), ('insertText', 'deleteText'))
+            self.assertEqual(next(iter(request.values()))['objectId'], 'mvp_title_1')
+
     def test_single_run_spanning_paragraphs(self):
         element = box('mvp_body_1', ['One', 'Two'])
         entries = element['shape']['text']['textElements']

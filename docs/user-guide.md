@@ -13,8 +13,9 @@ charcoal body text, and Arial.
 5. Enable the connector in a chat and ask:
    > Create a 3-slide presentation about a weekend in Paris using Mistral Slides.
 
-Generation supports 1–6 content slides. Every new deck includes an extra title slide with a generated background image.
-“Three slides” creates one cover plus three content slides. Image generation may
+Generation supports 1–6 total slides, including a title slide with a generated background image.
+“Three slides” creates one cover and two content slides; one slide creates only the title slide.
+Slide numbers follow the visible order: the title is slide 1, and the first content slide is slide 2. Image generation may
 take a little longer; the title stays editable.
 
 The connector chooses between a key message, 1–5 bullets, a two-column comparison,
