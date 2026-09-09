@@ -5,7 +5,7 @@ This is the reference for the implemented flow at `d53361d`. Keep this behavior
 stable; limit further auth work to bug fixes, configuration, and release checks.
 Google publishing and Railway settings are operational state, not implied by this
 freeze. Configuration is described below; remaining release checks live in the
-[submission checklist](submission-plan.md#4-verify-google-oauth-and-onboarding).
+[submission checklist](submission-checklist.md#4-verify-google-oauth-and-onboarding).
 
 ## One connection, two OAuth relationships
 
@@ -114,7 +114,7 @@ in their Google Account. Operational logs avoid credentials and content.
 ## Deployment configuration
 
 Use the existing Railway service, persistent volume, and Google web OAuth client.
-Set the allowlists above and the remaining variables in [.env.example](.env.example)
+Set the allowlists above and the remaining variables in [.env.example](../.env.example)
 in Railway; pushing the template does not apply them. Keep
 `PUBLIC_BASE_URL=https://mistral-slides-mcp-production.up.railway.app`.
 
@@ -151,17 +151,17 @@ and [branding requirements](https://developers.google.com/identity/protocols/oau
 Usage controls are separate from authentication: defaults are 100 lifetime paid
 provider-call attempts and two concurrent calls. `PILOT_PAID_CALLS_ENABLED=false`
 pauses new paid operations after redeployment. These are operation limits, not
-a currency cap. See [usage settings](README.md#pilot-usage-controls).
+a currency cap. See [usage settings](../README.md#pilot-usage-controls).
 
 ## Code and validation
 
 | File | Responsibility |
 | --- | --- |
-| [oauth.py](src/mcp_slides/mvp/oauth.py) | Consent, authorization exchange, connector tokens, refresh, revocation. |
-| [auth.py](src/mcp_slides/mvp/auth.py) | Google flow, verified identity, admission, credentials, persistence and purge. |
-| [server.py](src/mcp_slides/mvp/server.py) | MCP auth configuration, routes and authenticated tool entry points. |
-| [pages.py](src/mcp_slides/mvp/pages.py) | Connection UI, public homepage and privacy policy. |
-| [usage.py](src/mcp_slides/mvp/usage.py) | Shared paid-operation allowance and concurrency control. |
+| [oauth.py](../src/mcp_slides/oauth.py) | Consent, authorization exchange, connector tokens, refresh, revocation. |
+| [auth.py](../src/mcp_slides/auth.py) | Google flow, verified identity, admission, credentials, persistence and purge. |
+| [server.py](../src/mcp_slides/server.py) | MCP auth configuration, routes and authenticated tool entry points. |
+| [pages.py](../src/mcp_slides/pages.py) | Connection UI, public homepage and privacy policy. |
+| [usage.py](../src/mcp_slides/usage.py) | Shared paid-operation allowance and concurrency control. |
 
 Recorded validation: 77 full-suite tests passed after implementation; the 10
 OAuth tests passed again after the UI update. Tests cover signed identity

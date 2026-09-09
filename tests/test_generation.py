@@ -9,7 +9,7 @@ from unittest.mock import patch, MagicMock
 
 from starlette.testclient import TestClient
 from mcp.server.mcpserver.exceptions import ToolError
-from mcp_slides.mvp import preferences, auth, outline, server, slides
+from mcp_slides import preferences, auth, outline, server, slides
 
 OUTLINE = {"title": "Demo", "slides": [{"type": "bullets", "title": "First", "bullets": ["A", "B", "C"]}]}
 ENV = {"CONNECTOR_BEARER_TOKEN": "test-secret", "GOOGLE_CLIENT_ID": "test-client",
@@ -17,7 +17,7 @@ ENV = {"CONNECTOR_BEARER_TOKEN": "test-secret", "GOOGLE_CLIENT_ID": "test-client
        "MISTRAL_API_KEY": "test-key"}
 
 
-class MVPTests(unittest.TestCase):
+class GenerationTests(unittest.TestCase):
     def setUp(self):
         temp = tempfile.TemporaryDirectory()
         env = patch.dict(os.environ, {'TOKEN_DB_PATH': str(Path(temp.name) / 'tokens.db'),

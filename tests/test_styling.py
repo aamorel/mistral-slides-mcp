@@ -7,7 +7,7 @@ from unittest.mock import ANY, MagicMock, patch
 
 from googleapiclient.errors import HttpError
 from mcp.server.mcpserver.exceptions import ToolError
-from mcp_slides.mvp import editing, preferences, server, styling
+from mcp_slides import editing, preferences, server, styling
 from test_editing import box
 
 SETTINGS = preferences.StyleSettings(background='#FFFFFF', title_color='#D32F2F', body_color='#263238', font_family='Georgia', gradient=False)

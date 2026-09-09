@@ -10,7 +10,7 @@ import logging
 from typing import Any
 
 import uvicorn
-from mcp_slides.google_auth import google_auth_callback, google_auth_start, google_auth_status
+from .google_auth import google_auth_callback, google_auth_start, google_auth_status
 from mcp.server.mcpserver import MCPServer
 from starlette.requests import Request
 from starlette.responses import Response

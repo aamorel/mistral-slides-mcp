@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 
 from googleapiclient.errors import HttpError
 from mcp.server.mcpserver.exceptions import ToolError
-from mcp_slides.mvp import editing, insertion, preferences, server, slides, styling
+from mcp_slides import editing, insertion, preferences, server, slides, styling
 from test_editing import box
 
 NEW = {'type': 'bullets', 'title': 'Risks', 'bullets': ['Budget remains uncertain']}

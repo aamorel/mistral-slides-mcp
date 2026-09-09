@@ -15,7 +15,7 @@ from google.auth import crypt, jwt, exceptions
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
-from mcp_slides.mvp import auth, oauth, usage, outline, editing, insertion, backgrounds
+from mcp_slides import auth, oauth, usage, outline, editing, insertion, backgrounds
 
 
 class PilotTests(unittest.TestCase):

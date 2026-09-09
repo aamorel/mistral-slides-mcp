@@ -6,8 +6,8 @@ these setup commands and “next actions” are historical, not deployment guida
 The current server exposes eight tools, uses per-connection OAuth, and supports
 four content layouts, insertion, deck styling and saved preferences.
 
-Use [README.md](README.md) for setup, the [current MVP scope](src/mcp_slides/mvp/SCOPE.md)
-for capabilities, and [submission-plan.md](submission-plan.md) for remaining work.
+Use [README.md](../../README.md) for setup, the [current MVP scope](../capabilities.md)
+for capabilities, and [submission-plan.md](../submission-checklist.md) for remaining work.
 Reported experimental successes do not establish acceptance of the current release.
 
 ## Target MVP

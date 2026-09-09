@@ -6,8 +6,8 @@ implementation I can explain and maintain confidently.
 Feature-freeze candidate: generate from topic or source content using key messages,
 flexible bullets, comparisons, and steps; read decks; revise supported text; insert
 content slides; style an existing deck; save defaults for future decks; and
-automatically generate an image cover. The [current scope](src/mcp_slides/mvp/SCOPE.md)
-defines the contract; [scope.md](scope.md) remains the original assignment.
+automatically generate an image cover. The [current scope](capabilities.md)
+defines the contract; [original assignment](assignment.md) remains the original assignment.
 After acceptance testing these flows, freeze new features and focus on correctness,
 visual fit, deployment, OAuth publishing, repository cleanup, and code ownership.
 Adding/removing items and converting existing layouts remain deferred.
@@ -15,7 +15,7 @@ Adding/removing items and converting existing layouts remain deferred.
 Documentation synchronized on 2026-09-09. Local automated validation: 77 tests
 passed. Unchecked live, publishing and ownership tasks below remain pending.
 
-Auth and the connection UI are frozen for the pilot; [AUTH.md](AUTH.md) is the
+Auth and the connection UI are frozen for the pilot; [auth reference](auth.md) is the
 implementation reference. Configuration, acceptance, and removal of the friend
 exception remain release tasks.
 
@@ -45,13 +45,13 @@ exception remain release tasks.
   setup, architecture, deployment, and known limitations.
 - [ ] Reconcile historical validation notes with what has actually been tested;
   distinguish user-confirmed results from checks still pending.
-- [x] Update `USER-README.md` with a short generation-and-editing example and the
+- [x] Update `docs/user-guide.md` with a short generation-and-editing example and the
   actual supported editing boundaries.
 - [x] Update the package description in `pyproject.toml` and use `README.md` as
-  the package README. Preserve `scope.md` as the original assignment.
+  the package README. Preserve `docs/assignment.md` as the original assignment.
 - [x] Include `editing.py` in the README's application module list.
-- [ ] Move investigation and migration history into `docs/` where it improves
-  navigation; update links. Clearly label any retained investigation scripts.
+- [x] Move supporting documentation into `docs/`, preserve history under
+  `docs/history/`, and label retained experiments in `scripts/investigation/`.
 - [ ] Review tracked files and Git history for accidentally committed secrets
   or credentials. If found, revoke/rotate them and address repository exposure.
 - [ ] Avoid unnecessary package renames or authentication refactors before submission.
@@ -70,15 +70,15 @@ exception remain release tasks.
 
 ## 4. Verify Google OAuth and onboarding
 
-The implementation is frozen in [AUTH.md](AUTH.md); use its
-[deployment configuration](AUTH.md#deployment-configuration) for Google and Railway.
+The implementation is frozen in [auth reference](auth.md); use its
+[deployment configuration](auth.md#deployment-configuration) for Google and Railway.
 Keep the following live checks open until their outcomes are recorded.
 
 - [x] Implement the client-domain gate, owner and temporary friend exceptions,
   and global usage controls.
 - [ ] Confirm the deployed version and Railway allowlists/usage settings match
   the frozen implementation before handoff.
-- [ ] Confirm Google Data Access matches the implemented scopes in `AUTH.md`.
+- [ ] Confirm Google Data Access matches the implemented scopes in `docs/auth.md`.
 - [ ] Review Audience, Branding, and Verification Center requirements, then
   publish the external OAuth app when ready.
 - [ ] Verify the owner and temporary friend can connect during evaluation.

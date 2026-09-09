@@ -14,8 +14,8 @@ import httpx2
 import uvicorn
 from mcp import Client
 from mcp.client.streamable_http import streamable_http_client
-from mcp_slides.mvp import server, auth, preferences
-from mcp_slides.mvp.oauth import GoogleOAuthProvider, SCOPE
+from mcp_slides import server, auth, preferences
+from mcp_slides.oauth import GoogleOAuthProvider, SCOPE
 
 ENV = {'CONNECTOR_BEARER_TOKEN': 'protocol-secret', 'GOOGLE_CLIENT_ID': 'fake',
        'GOOGLE_CLIENT_SECRET': 'fake', 'PUBLIC_BASE_URL': 'http://127.0.0.1',

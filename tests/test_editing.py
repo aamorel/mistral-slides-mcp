@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 
 from googleapiclient.errors import HttpError
 from mcp.server.mcpserver.exceptions import ToolError
-from mcp_slides.mvp import editing, server
+from mcp_slides import editing, server
 
 
 def box(object_id, lines):

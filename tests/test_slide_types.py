@@ -2,7 +2,7 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
-from mcp_slides.mvp import outline, slides, layouts, editing, styling, preferences, insertion
+from mcp_slides import outline, slides, layouts, editing, styling, preferences, insertion
 from test_editing import box
 
 TYPES = [

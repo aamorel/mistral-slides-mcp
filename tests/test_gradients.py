@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 
 from PIL import Image
 
-from mcp_slides.mvp import gradients, preferences, slides, styling, editing, insertion, backgrounds
+from mcp_slides import gradients, preferences, slides, styling, editing, insertion, backgrounds
 from test_insertion import deck, NEW
 
 

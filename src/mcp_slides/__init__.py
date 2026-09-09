@@ -1,1 +1,1 @@
-"""MCP Slides investigation package."""
+"""MCP connector for creating and editing Google Slides presentations."""

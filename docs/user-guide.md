@@ -72,7 +72,7 @@ requires a separate request. Reconnecting starts a new preference scope.
 
 You can paste a Google Slides link when referring to a deck. Access is limited to
 files available to this connector and your connected account. For implementation
-limits, see the [current MVP scope](src/mcp_slides/mvp/SCOPE.md).
+limits, see the [current MVP scope](capabilities.md).
 
 After the identity-policy upgrade, reconnect once with your approved account. If
 generation is paused, busy, or the pilot allowance is exhausted, follow the tool

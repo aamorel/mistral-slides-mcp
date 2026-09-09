@@ -16,7 +16,7 @@ from google.oauth2.credentials import Credentials
 from google.auth.exceptions import RefreshError
 from starlette.testclient import TestClient
 
-from mcp_slides.mvp import auth, oauth, server
+from mcp_slides import auth, oauth, server
 
 BASE = 'https://slides.example.com'
 CALLBACK = 'https://vibe.example.com/oauth/callback'

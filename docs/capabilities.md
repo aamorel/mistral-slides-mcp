@@ -3,9 +3,9 @@
 The MVP lets a user connect the MCP in Vibe, authorize their own Google account,
 and create and revise presentations in their own Google Drive through conversation.
 This document describes the current implementation, extending the
-[original assignment](../../../scope.md). It is the feature-freeze candidate: the next work is acceptance testing,
+[original assignment](assignment.md). It is the feature-freeze candidate: the next work is acceptance testing,
 fixes, OAuth publishing, repository cleanup, and code ownership. The remaining
-submission work is tracked in [submission-plan.md](../../../submission-plan.md).
+submission work is tracked in [submission checklist](submission-checklist.md).
 
 ## Tools
 
@@ -135,7 +135,7 @@ being asked.
 ## Validation and release constraints
 
 Authentication and the connection UI are frozen for the pilot as of 2026-09-09.
-[AUTH.md](../../../AUTH.md) defines the accepted behavior; remaining work is
+[auth reference](auth.md) defines the accepted behavior; remaining work is
 configuration, release checks, and bug fixes, not auth feature expansion.
 
 - Automated validation on 2026-09-09: all 77 tests passed, covering schemas, API request construction,
@@ -149,7 +149,7 @@ configuration, release checks, and bug fixes, not auth feature expansion.
   cover image handling, skipped slides, and conversational feature discovery.
 - Last recorded Google OAuth state is testing: accounts must be approved testers.
   This documentation review did not inspect the Console or deployment. Publishing
-  is tracked in the [submission checklist](../../../submission-plan.md#4-verify-google-oauth-and-onboarding).
+  is tracked in the [submission checklist](submission-checklist.md#4-verify-google-oauth-and-onboarding).
   Client-only admission and global usage controls are implemented locally, with
   deployed acceptance pending. Configure verified `mistral.ai` Workspace access
   and personal exceptions; remove the friend exception before submission.
