@@ -73,7 +73,7 @@ purge its existing connections. Keep the owner's exception.
 | --- | --- |
 | Google `drive.file` | Create files and work with files explicitly made available to the app. |
 | Google `openid` + `https://www.googleapis.com/auth/userinfo.email` | Verify identity and enforce admission. |
-| Connector `slides.generate` | Authorize the connector's eight tools, including reading and editing. |
+| Connector `slides.generate` | Authorize the connector's nine tools, including reading and editing. |
 
 Each authorization creates a random **connection subject**. Google's stable
 `sub` is stored alongside it, but does not merge connections or preferences.
@@ -104,6 +104,13 @@ connection-specific preferences, temporary images, and the shared usage counter.
 Connector codes and access/refresh tokens are stored by hash. Google credentials
 and OAuth client secrets are **not separately encrypted in the database**.
 Keep one worker/replica and preserve the volume across deployments.
+
+Temporary images include generated covers, gradients and normalized attachments.
+They are served through unguessable URLs that expire after ten minutes, with
+cleanup after use and expired-row removal on subsequent database access. Google
+Slides retains images already inserted; deleting temporary assets or revoking the
+connection does not remove them from presentations. Attachment placement uses the
+existing scopes and does not send the image to the Mistral API.
 
 `/revoke` removes the connection's credentials, identity, connector tokens,
 preferences, and temporary images. Startup also purges excluded accounts and

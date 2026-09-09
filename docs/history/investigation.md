@@ -3,11 +3,11 @@
 This is an archived record of experiments and decisions before the current MVP.
 The one-tool, static-bearer, separate-Google-link design below is superseded;
 these setup commands and “next actions” are historical, not deployment guidance.
-The current server exposes eight tools, uses per-connection OAuth, and supports
-four content layouts, insertion, deck styling and saved preferences.
+The current server uses per-connection OAuth. Its maintained tool list and
+feature boundaries are documented in the current MVP scope linked below.
 
 Use [README.md](../../README.md) for setup, the [current MVP scope](../capabilities.md)
-for capabilities, and [submission-plan.md](../submission-checklist.md) for remaining work.
+for capabilities, and [submission checklist](../submission-checklist.md) for remaining work.
 Reported experimental successes do not establish acceptance of the current release.
 
 ## Target MVP

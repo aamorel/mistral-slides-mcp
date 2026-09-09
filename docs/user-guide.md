@@ -1,7 +1,7 @@
 # Try the Google Slides connector
 
 Generate from a topic or your notes, style a presentation, save defaults for future
-decks, add slides, and revise wording through chat. Every new presentation uses your default style
+decks, add slides, place your own images, and revise wording through chat. Every new presentation uses your default style
 automatically. Before customization, it uses white backgrounds with a faint blue corner gradient, blue titles,
 charcoal body text, and Arial.
 
@@ -44,12 +44,12 @@ Your other saved settings are preserved; existing presentations do not change.
 To apply all saved defaults to an existing deck, ask: “Apply my default style to
 the trees presentation.”
 
-Deck styling keeps the same link, wording, layout, and cover image. Unsupported
+Deck styling keeps the same link, wording, layout, cover image, and attached images. Unsupported
 slides or unreadable color combinations are skipped and reported. The cover image
 is not recolored. Custom templates are not supported.
 
 After creating a deck, try: “Make slide two less technical.” The connector can
-revise supported text at the same link; it cannot rearrange slides or edit images.
+revise supported text at the same link; it cannot rearrange slides or alter image contents.
 
 After the image-enabled version is deployed and connector definitions refreshed,
 attach a PNG, JPEG or WebP and ask: “Add this image to slide 2.” Positions count
@@ -58,11 +58,16 @@ image fits on the right, without cropping or stretching. Wording, fonts, colors
 and neighboring slides stay unchanged. To replace it, attach another image and
 ask “Replace the image on slide 2 with this one.” Each slide has one image slot.
 
-If text is too long, shorten it first: up to 90 message characters or 3 bullets
+Font sizes stay unchanged; automatic shrinking is not supported. If text is too
+long, request a wording edit before adding the image: up to 90 message characters or 3 bullets
 of 55 characters each, 150 total. Wide text may need further shortening. If the
-attachment is unavailable, upload it again. Subsequent wording and style edits
+attachment is unavailable, upload it again. A custom spacing or indentation error
+is a formatting issue: shortening text will not fix it. Try an original, unmodified
+key-message or bullet slide; ordinary generated bullet indentation is supported. Subsequent wording and style edits
 still work. Creation-time images, image removal, multiple images on one slide,
-and placement on covers/comparisons/steps are unsupported.
+and placement on covers/comparisons/steps are unsupported. You can add images to
+several slides by requesting one slide at a time. Once inserted, the image is
+stored in Google Slides; expiry of the temporary attachment link does not remove it.
 
 To extend the same deck, try: “Add a slide about risks after slide two” or
 “Append a conclusion using these notes.” One content slide is added per call;

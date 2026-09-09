@@ -1,7 +1,7 @@
 [project]
 name = "mcp-slides"
 version = "0.1.0"
-description = "MCP connector for creating, reading, revising, extending and styling Google Slides presentations."
+description = "MCP connector for creating, reading, revising, extending, styling and adding images to Google Slides presentations."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [

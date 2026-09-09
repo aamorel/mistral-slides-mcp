@@ -6,13 +6,14 @@ implementation I can explain and maintain confidently.
 Feature-freeze candidate: generate from topic or source content using key messages,
 flexible bullets, comparisons, and steps; read decks; revise supported text; insert
 content slides; style an existing deck; save defaults for future decks; and
-automatically generate an image cover. The [current scope](capabilities.md)
+automatically generate an image cover; add or explicitly replace one attachment
+on an existing supported key-message or bullet slide. The [current scope](capabilities.md)
 defines the contract; [original assignment](assignment.md) remains the original assignment.
 After acceptance testing these flows, freeze new features and focus on correctness,
 visual fit, deployment, OAuth publishing, repository cleanup, and code ownership.
 Adding/removing items and converting existing layouts remain deferred.
 
-Documentation synchronized on 2026-09-09. Local automated validation: 99 tests
+Documentation synchronized on 2026-09-09. Local automated validation: 100 tests
 passed. Unchecked live, publishing and ownership tasks below remain pending.
 
 Auth and the connection UI are frozen for the pilot; [auth reference](auth.md) is the
@@ -30,6 +31,9 @@ exception remain release tasks.
   style inheritance, insertion position, revision checks and duplicate prevention.
 - [ ] Trace styling: `server.py` → `styling.py` / `preferences.py`. Explain this
   deck versus future defaults, partial updates, contrast checks and skipped slides.
+- [ ] Trace attachment placement: `server.py` → `slide_images.py` → `attachments.py`
+  and `backgrounds.py`. Explain fresh references, layout validation, temporary
+  publication/cleanup, explicit replacement and uncertain-write recovery.
 - [ ] Trace authentication: `server.py` → `oauth.py` → `auth.py`.
   Explain the Vibe-to-server and server-to-Google OAuth relationships, per-user
   credential mapping, refresh, revocation, and the responsibilities of the MCP SDK.
@@ -102,14 +106,21 @@ present onboarding as unrestricted.
 
 ## 5. Run the final deployed acceptance pass
 
+Refresh Vibe's connector tool definitions after deployment. Automated tests mock
+Google and Mistral; these checks exercise the real providers and conversation.
+
 - [ ] Add a fresh attachment to short message/bullet slides, then explicitly
   replace it. Verify full-image fit, transparency/orientation, preserved wording,
   fonts and deck URL. Revise wording/style afterward. Check crowded text,
   unsupported layouts, occupied slots and re-upload recovery. Local geometry
   previews and mocked tests do not replace this Google acceptance.
 
-Refresh Vibe's connector tool definitions after deployment. Automated tests mock
-Google and Mistral; these checks exercise the real providers and conversation.
+- [ ] Verify standard generated bullet indentation accepts “What Are Frogs?” with
+  “Amphibians with smooth, moist skin”, “Live in water and on land”, and
+  “Undergo metamorphosis from tadpoles to adults”. Confirm a genuine formatting rejection is not presented as
+  a request to shorten text. Confirm fonts remain the same size.
+- [ ] Verify an inserted image remains visible after temporary URL expiry and
+  inserting a neighboring slide does not copy its image.
 
 - [ ] Generate from a topic and open the exact returned link in the correct Drive.
 - [ ] Ask “Create a presentation about phones” with no other details. Confirm
@@ -162,7 +173,7 @@ Google and Mistral; these checks exercise the real providers and conversation.
 
 - [ ] Confirm the final commit is pushed, deployed, and matches the tested version.
 - [ ] Confirm reviewers can access the GitHub repository and deployed MCP URL.
-- [ ] Prepare a short demo: connect → generate → revise → explain one limitation.
+- [ ] Prepare a short demo: connect → generate → attach an image to slide 2 → revise → explain one limitation.
 - [ ] Optionally record the demo as a fallback and quick overview.
 - [ ] Prepare a concise handoff containing the repository link, deployed MCP URL,
   connection instructions, example prompts, and known limitations.

@@ -1,14 +1,13 @@
 # Image editing UX
 
-Status: implemented locally; deployed Google/Vibe acceptance remains pending.
+Status: implemented; deployed Google/Vibe acceptance remains pending.
 Attachment feasibility evidence lives in
 [the isolated investigation](../scripts/investigation/image_attachment_probe/RESULTS.md).
 
 ## Implemented first slice
 
-Add one user-supplied image to an existing supported content slide. Start with
-key-message and bullet slides, using a common text-left/image-right composition.
-Keep generation unchanged initially. A deck may have images on multiple slides,
+Add one user-supplied image to an existing key-message or bullet slide, using
+a common text-left/image-right composition. Attachments are an edit-only feature. A deck may have images on multiple slides,
 but each slide has one image slot and each request handles one image/target pair.
 
 Creation support is a later extension: the same renderer could accept an image
@@ -20,7 +19,8 @@ reporting partial failures need their own contract.
 1. User attaches an image and says "Add this to slide 2."
 2. Resolve slide 2 by its current visible order, counting the cover as slide 1.
    Read current state and revision; do not infer an ID from a slide number.
-3. Retrieve the fresh attachment and validate the slide and image before writing.
+3. Validate the slide before downloading; retrieve and validate the fresh attachment
+   before writing.
 4. Apply text geometry and insert the image together in a revision-checked batch.
 5. Return the same deck URL and a concrete summary: "Added your image to slide 2,
    beside the text. Kept the full image visible."
@@ -52,10 +52,11 @@ subject detection, free positioning or arbitrary dimensions.
 
 ## Support boundaries
 
-| Slide state | Proposed first-version behavior |
+| Slide state | Implemented behavior |
 | --- | --- |
 | Recognized key-message or bullets; text fits narrower budget | Add image and reflow existing text. |
 | Same supported slide with an existing managed image | Explicit replacement keeps frame and text geometry. |
+| Unsupported paragraph formatting | Explain the formatting issue; shortening text will not fix it. Leave the deck unchanged. |
 | Too much text | Explain that there is insufficient room; offer a separate wording edit before retrying. |
 | Comparison or steps | Explain image placement is not yet supported for that layout; do not convert it automatically. |
 | Cover, grouped/custom elements, or altered geometry we cannot preserve | Reject with a precise reason and leave the deck unchanged. |
@@ -63,10 +64,18 @@ subject detection, free positioning or arbitrary dimensions.
 | Revision conflict | Reread before deciding whether to retry. |
 | Unconfirmed Google write | Return target/object identity and recovery guidance; reread to avoid duplicates. |
 
-An image-containing slide must remain readable, text-editable and styleable
-under its new budgets; styling must preserve the image. Subsequent slide insertion
-must not inadvertently copy its image. These are part of the first slice, not
-optional follow-up polish. Image removal/restoring previous geometry is unsupported.
+An image-containing slide remains text-editable under its new budgets; styling
+preserves its image. Subsequent slide insertion inherits supported styling without
+copying the image. Image removal/restoring previous geometry is unsupported.
+
+Ordinary Google level-zero bullet indentation is supported (up to 36 pt, with
+tolerance for PT/EMU conversion). Custom paragraph spacing, changed font sizes
+and altered geometry can still be rejected. Automatic font shrinking and larger
+text budgets are future options, not implemented behavior.
+
+The server temporarily publishes the normalized image for Google to fetch, then
+cleans it up. Google Slides retains the inserted image after that URL expires.
+The attachment is not sent to the Mistral API and placement uses no model allowance.
 
 ## Why not an image variant of every layout yet?
 

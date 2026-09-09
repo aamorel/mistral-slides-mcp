@@ -33,7 +33,9 @@ needed for partial style changes.
   text, preserving supplied claims and uncertainty; factual expansion requires
   explicit instructions. Both modes support all content slide types.
 - The assistant supplies relevant conversation or notes as text. The server
-  cannot retrieve conversation history, URLs, or uploaded files itself.
+  does not retrieve conversation history, linked documents, or uploaded source
+  files for text generation. The separate image-placement tool retrieves a fresh
+  image attachment reference supplied by the assistant.
 - Each generation creates 1–6 content slides plus an automatic opening title
   slide with a Mistral-generated background image. The default is four slides
   total. The cover image is required; preparation failure prevents deck creation.
@@ -74,7 +76,7 @@ renderer validates again before creating a Google file.
   `set_presentation_style(use_default_style=True)`.
 - Deck styling can update supported slide backgrounds, text colors/font and
   the cover title band. It preserves wording, sizes, emphasis, bullets, layout,
-  order, and the cover image; that image is not regenerated or recolored.
+  order, the cover image, and managed attachments; images are not regenerated or recolored.
 - Slides containing unsupported elements, unreadable colors needed for validation,
   or insufficient resulting contrast are skipped entirely with reasons. Partial
   color changes are checked against retained colors; font-only changes do not
@@ -96,12 +98,12 @@ renderer validates again before creating a Google file.
 - All tools that mutate existing decks reread the deck and use Google's required revision check.
   Stale revisions prevent writes. Unconfirmed writes are not automatically retried;
   the caller must reread before deciding what to do next.
-- Edit, insertion and styling results share `status`, `presentation_url`,
+- Edit, insertion, image placement and styling results share `status`, `presentation_url`,
   `revision_id`, `changes` and `warnings`, plus operation-specific fields. Writes
   return the updated revision from Google when supplied, otherwise null. Reuse it
   only with sufficient context; missing revisions or conflicts require a fresh read.
 - Text edits report updated/unchanged; insertion reports added; styling reports
-  applied/unsupported with skipped slides. None implies visual verification.
+  applied/unsupported with skipped slides; image placement reports added/replaced. None implies visual verification.
 - `add_slide` inserts one content slide at the end or after an existing slide,
   preserving existing objects, manual edits and the same URL. All four content
   types are supported. Original 720 × 405 point page size is required; serialized
@@ -124,17 +126,22 @@ host. It supports original key-message and bullet slides: title remains full
 width, text narrows on the left, and one contained image is centered on the right.
 Text IDs, wording, formatting, the same deck and neighboring slides are preserved.
 The original 720 × 405 point page size, supported text geometry and original font
-sizes are required. Manual layout changes are rejected.
+sizes are required. Manual layout changes are rejected. Standard Google bullet
+indentation up to 36 pt is accepted, including PT/EMU conversion tolerance.
+Unsupported paragraph formatting is reported separately from text that does not
+fit: shortening text does not fix a formatting rejection.
 
 Text limits beside images: 90 characters for a message, or 1–3 bullets with 55
 characters per item and 150 total, plus a conservative wrapping check. Wide text
-can be rejected below those limits. Wording edits retain these limits; styling
+can be rejected below those limits. Font sizes are preserved, not automatically reduced. Wording edits retain these limits; styling
 preserves the image. Slide insertion can inherit its style without copying it.
 
 PNG/JPEG/WebP attachments must be single-frame, at most 5 MiB and 20 megapixels.
 Normalization honors orientation, retains transparency, strips metadata and bounds
 the longest side to 1600 pixels. Temporary publication uses existing connection
-storage and cleanup. Failed retrieval leaves the deck unchanged and requests
+storage and cleanup; Google Slides retains the inserted image after cleanup.
+The connector does not send attachments to the Mistral API, and placement consumes
+no model allowance. Failed retrieval leaves the deck unchanged and requests
 re-upload. Uncertain Google writes require rereading the reported image ID before
 retrying. Occupied slots require an explicit replacement request and `replace=true`.
 
@@ -167,7 +174,7 @@ Authentication and the connection UI are frozen for the pilot as of 2026-09-09.
 [auth reference](auth.md) defines the accepted behavior; remaining work is
 configuration, release checks, and bug fixes, not auth feature expansion.
 
-- Automated validation on 2026-09-09: all 99 tests passed, covering schemas, API request construction,
+- Automated validation on 2026-09-09: all 100 tests passed, covering schemas, API request construction,
   MCP discovery/invocation, authentication isolation, preferences, supported edits,
   partial style updates, URL normalization, and revision/error handling.
   This is local mocked-provider evidence, not deployed acceptance.
@@ -188,8 +195,9 @@ configuration, release checks, and bug fixes, not auth feature expansion.
   `openid` and email identity scopes for admission; no shared
   Google-account fallback. Mistral calls use the operator's API key.
 - Deployment requires public HTTPS and persistent SQLite storage on the existing
-  single-instance service. Temporary cover images use expiring capability URLs
-  for Google's image fetch and are cleaned up after generation.
+  single-instance service. Temporary covers, gradients and normalized attachments
+  use expiring capability URLs for Google's image fetch and are cleaned up after
+  the operation, with expiry as a backstop.
 
 ## Outside this freeze
 

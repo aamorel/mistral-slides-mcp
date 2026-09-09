@@ -61,11 +61,15 @@ def home() -> HTMLResponse:
 <h1>From a conversation<br>to Google Slides.</h1>
 <p>MCP Slides is a connector for Vibe that creates presentations in your own
 Google Drive. Describe a topic or provide source material, then revise text,
-add a slide, or adjust colors and fonts through conversation.</p>
+add a slide, place your own image beside short text, or adjust colors and fonts
+through conversation.</p>
 <h2>How it works</h2>
 <p>Connect through Vibe, authorize your Google account, and ask for a presentation.
 Mistral generates the text and cover image; Google Slides stores the deck in
 your account. You receive a link to open and edit it.</p>
+<p>After creation, attach an image in Vibe and ask to add it to an existing
+key-message or bullet slide. Each supported slide has one image slot; the full
+image fits beside the text. You can explicitly replace it later.</p>
 <h2>Who can use it?</h2>
 <p>This evaluation pilot is available to approved Mistral company Google accounts
 and invited personal testers. Usage is limited during the pilot.</p>
@@ -97,6 +101,10 @@ fulfil your requests.</p>
 sent to the Mistral API to generate or revise slides. Cover generation sends the
 presentation title and selected colors. Generated content is sent to Google
 Slides and stored in your Google account.</p>
+<p>When you ask to add an attached image, the connector retrieves it from the
+attachment link, normalizes its orientation and size, and removes metadata. The
+normalized image is temporarily stored for Google to fetch and embed in your
+presentation. The connector does not send these attachments to the Mistral API.</p>
 <p>Railway hosts the connector and its database. Google and Mistral process the
 information needed to provide their services under their own terms and privacy
 policies. Vibe also processes your conversation under its own service terms.</p>
@@ -113,7 +121,9 @@ access policy, or deleted following a request.</p>
 saved as a content archive in the connector database. Decks remain in Google
 Drive. Temporary images are served using unguessable links for Google to fetch;
 links expire after ten minutes, with cleanup after use or during subsequent
-database activity.</p>
+database activity. This includes generated covers, gradients and normalized
+attachments. Images already inserted remain in Google Slides after temporary
+links expire or connector copies are deleted.</p>
 <p>We keep a shared usage counter and operational logs for reliability and
 troubleshooting. Application logs are designed to exclude tokens, email
 addresses, source text, and presentation URLs. Hosting providers may retain

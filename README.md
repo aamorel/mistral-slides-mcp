@@ -19,7 +19,7 @@ See the [user guide](docs/user-guide.md) for access details and example prompts.
 ## What it does
 
 Nine tools cover presentation generation, reading, text revision, slide insertion,
-deck styling, and reading/saving/resetting style defaults. Content supports key
+attachment placement, deck styling, and reading/saving/resetting style defaults. Content supports key
 messages, bullets, comparisons, and steps, with a generated cover image.
 
 Editing is deliberately bounded: it preserves the existing deck and supported
@@ -48,6 +48,12 @@ flowchart TD
     Render --> Google[Google Slides API]
     MCP --> Mutations[editing.py / insertion.py / styling.py]
     Mutations --> Google
+    MCP --> Attachments[attachments.py: retrieve and normalize attachment]
+    MCP --> Placement[slide_images.py: validate and place image]
+    Placement --> Attachments
+    Placement --> Images
+    Placement --> Google
+    Images --> DB
     MCP --> Auth[oauth.py / auth.py: OAuth + connection credentials]
     Service --> Prefs[preferences.py: connection style]
     Auth --> DB[(SQLite: credentials, preferences, usage, temporary images)]
@@ -137,7 +143,8 @@ access rules, token lifecycle, storage tradeoffs, and troubleshooting.
 | --- | --- |
 | Invalid tool arguments or missing Google connection | Reject before paid generation. Reconnect when instructed. |
 | Malformed model output | Strict schema validation; at most two attempts total. No deck is created on exhaustion. |
-| Image generation / download / publication failure | Stop before creating a deck; return a safe error. Images have format, size and dimension limits. |
+| Cover generation / download / publication failure | Stop before creating a deck; return a safe error. Images have format, size and dimension limits. |
+| Attachment retrieval or validation failure | Leave the deck unchanged. Re-upload an unavailable attachment; distinguish crowded text from unsupported formatting. |
 | Google read fails transiently | At most two SDK retries. No mutation is replayed. |
 | Creation response is lost | Report that a deck may exist; check Drive for the requested title before retrying. |
 | Population fails after a known deck ID | Return the recovery URL. The deck may be empty or complete; inspect before retrying. |
@@ -145,7 +152,8 @@ access rules, token lifecycle, storage tradeoffs, and troubleshooting.
 | Temporary image cleanup fails | Preserve the operation's result; log cleanup failure. Expired assets become unavailable and are purged on subsequent database access. |
 
 Mistral outline/edit calls use a 60-second SDK timeout; image generation uses
-120 seconds and image download 30 seconds. The pinned Google API client uses a
+120 seconds and generated-cover download 30 seconds. Attachment retrieval has a
+15-second network deadline. The pinned Google API client uses a
 60-second HTTP socket timeout. These are provider/transport bounds, **not a total
 end-to-end deadline**. Reads may retry; Google writes and paid SDK calls do not.
 A disconnected client or timeout does not prove that Google stopped processing.
@@ -169,7 +177,10 @@ SQLite volume. Protect volume access and backups. Revoking a connection removes
 its local credentials, preferences and temporary images; it does not delete decks
 or revoke Google consent upstream. Temporary image URLs are short-lived bearer
 URLs so Google can fetch them. Source text goes to Mistral; it is not retained as
-a generation brief. See [auth](docs/auth.md) for the complete security boundary.
+a generation brief. Attached images are retrieved and normalized by the server,
+temporarily stored for Google to fetch, and embedded in the deck. The connector
+does not send these attachments to the Mistral API. Removing temporary assets
+does not remove images already inserted in Google Slides. See [auth](docs/auth.md) for the complete security boundary.
 
 One process and one persistent volume are required. There is no worker queue,
 full-deck visual verification, arbitrary template editing, or guarantee of model
@@ -193,7 +204,9 @@ checks, not claims made by the mocked test suite.
 Image attachments can be added after generation with `set_slide_image` on short
 key-message/bullet slides. Text stays left; the complete image fits on the right.
 Explicit replacement reuses the same slot. Wording, font, colors and other slides
-are preserved. `attachments.py` retrieves and normalizes the fresh attachment;
+are preserved, including font size: automatic shrinking is not implemented.
+Each slide has one slot; attachments at creation, cropping and removal are outside
+this version. `attachments.py` retrieves and normalizes the fresh attachment;
 `slide_images.py` validates layout and applies the revision-protected batch.
 Neither imports investigation code. Downloads accept one exact `VIBE_IMAGE_HOST`
 (default `mistralaichatupprodswe.blob.core.windows.net`), with a 15-second network
@@ -205,8 +218,8 @@ This new flow still needs deployed Google/Vibe acceptance.
 
 All users consume the operator's Mistral API key. The defaults allow **100 paid
 provider-call attempts over the database's lifetime** and **two concurrent calls**.
-Generation, cover images, edits, and insertions share this allowance. Failed calls
-and explicit validation retries count; SDK retries are disabled. Reads and styling
+Text generation, cover generation, wording edits, and slide insertions share this allowance. Failed calls
+and explicit validation retries count; SDK retries are disabled. Reads, styling and attachment placement
 consume no model allowance. This bounds operations, not exact monetary spending.
 
 - `PILOT_MAX_PAID_CALLS`: lifetime ceiling; raise it to grant more usage.
@@ -234,7 +247,8 @@ uv run python -m unittest discover -s tests -v
 
 Tests mock Google and Mistral; the protocol test opens a temporary localhost port.
 They cover tool behavior, OAuth, account isolation, usage limits, presentation
-preservation, pre-write rendering failures, uncertain writes and safe diagnostics.
+preservation, attachment retrieval and placement, pre-write rendering failures,
+uncertain writes and safe diagnostics.
 [CI](.github/workflows/tests.yml) installs from the lockfile and runs the suite.
 The protocol test exercises discovery and invocation through real HTTP with mocked
 providers; it is not a live Mistral/Google end-to-end test. Live Vibe/Google acceptance is tracked separately in the
@@ -245,6 +259,7 @@ providers; it is not a live Mistral/Google end-to-end test. Live Vibe/Google acc
 - [User guide](docs/user-guide.md)
 - [Authentication](docs/auth.md)
 - [Capabilities](docs/capabilities.md)
+- [Image placement UX and limits](docs/image-editing-ux.md)
 - [Original assignment](docs/assignment.md)
 - [Submission checklist](docs/submission-checklist.md)
 - [Investigation history](docs/history/investigation.md)
