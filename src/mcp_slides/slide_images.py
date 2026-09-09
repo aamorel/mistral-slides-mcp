@@ -65,7 +65,7 @@ def text_fits(role, lines):
     # Conservative wrap estimate across the four supported fonts. Character
     # caps alone miss wide glyphs and long words. This is not visual verification.
     size = 26 if role == 'message' else 18
-    width = TEXT_BOXES[role][2] - (32 if role == 'body' else 16)
+    width = TEXT_BOXES[role][2] - (48 if role == 'body' else 16)
     def advance(char):
         if char.isspace():
             return .4 * size
@@ -137,10 +137,14 @@ def inspect_page(page):
                 if marker is None:
                     continue
                 style = marker.get('style', {})
-                if (style.get('lineSpacing', 100) > 110 or marker.get('bullet', {}).get('nestingLevel', 0) != 0
-                        or any(points(style.get(key, {'magnitude': 0, 'unit': 'PT'})) > maximum
-                               for key, maximum in [('spaceAbove', 0), ('spaceBelow', 8), ('indentStart', 24), ('indentEnd', 0)])):
-                    raise ValueError('Custom paragraph spacing or indentation is unsupported for image placement.')
+                # Google's standard level-zero bullet style can use 36 pt text
+                # indentation (18 pt first line). It is not a custom layout.
+                # Allow small PT/EMU conversion differences at each boundary.
+                max_indent = 36 if role == 'body' else 0
+                if (style.get('lineSpacing', 100) > 110.1 or marker.get('bullet', {}).get('nestingLevel', 0) != 0
+                        or any(points(style.get(key, {'magnitude': 0, 'unit': 'PT'})) > maximum + .1
+                               for key, maximum in [('spaceAbove', 0), ('spaceBelow', 8), ('indentStart', max_indent), ('indentEnd', 0)])):
+                    raise ValueError('Custom paragraph spacing or indentation is unsupported for image placement. Shortening the wording will not fix this formatting issue.')
     # Rules and managed images may have been moved over the future text/image area.
     from .layouts import decoration_boxes
     rules = {f'mvp_{r}_{suffix}': box for r, box in decoration_boxes(kind)}

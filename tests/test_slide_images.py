@@ -167,6 +167,25 @@ class SlideImageTests(unittest.IsolatedAsyncioTestCase):
         unsupported = page()
         unsupported['pageElements'][1]['objectId'] = 'mvp_steps_1'
         self.assertFalse(slide_images.capability(unsupported)['supported'])
+
+    async def test_frog_slide_with_standard_google_bullet_indentation(self):
+        original = page(lines=['Amphibians with smooth, moist skin', 'Live in water and on land',
+                               'Undergo metamorphosis from tadpoles to adults'])
+        for entry in original['pageElements'][1]['shape']['text']['textElements']:
+            if 'paragraphMarker' in entry:
+                entry['paragraphMarker']['style'].update(
+                    indentStart={'magnitude': 457200, 'unit': 'EMU'},
+                    indentFirstLine={'magnitude': 228600, 'unit': 'EMU'},
+                    spaceBelow={'magnitude': 8.000001, 'unit': 'PT'})
+        result, service, *_ = await self.run_image(deck(original))
+        self.assertEqual(result['status'], 'added')
+        after = apply_image_batch(original, service.presentations.return_value.batchUpdate.call_args.kwargs['body']['requests'])
+        self.assertEqual(original['pageElements'][1]['shape'], after['pageElements'][1]['shape'])
+        self.assertTrue(slide_images.capability(after)['supported'])
+        original['pageElements'][1]['shape']['text']['textElements'][0]['paragraphMarker']['style']['indentStart'] = {'magnitude': 72, 'unit': 'PT'}
+        capability = slide_images.capability(original)
+        self.assertFalse(capability['supported'])
+        self.assertIn('Shortening the wording will not fix', capability['reason'])
         unsupported = page()
         unsupported['objectId'] = 'mvp_slide_0'
         self.assertFalse(slide_images.capability(unsupported)['supported'])
