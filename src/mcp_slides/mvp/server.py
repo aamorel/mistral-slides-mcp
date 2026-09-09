@@ -24,7 +24,7 @@ from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
 from . import auth, outline, slides, editing, preferences, backgrounds, styling, insertion, gradients
-from . import usage
+from . import usage, pages
 from .oauth import GoogleOAuthProvider, SCOPE, ResourceTokenHandler
 
 STYLE_GUIDANCE = (
@@ -417,6 +417,14 @@ def create_app():
             return Response(status_code=404)
         data = await run_in_threadpool(backgrounds.read_image, token)
         return Response(data, media_type="image/png", headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"}) if data else Response(status_code=404)
+
+    @mcp.custom_route("/", methods=["GET"])
+    async def homepage(request):
+        return pages.home()
+
+    @mcp.custom_route("/privacy", methods=["GET"])
+    async def privacy_policy(request):
+        return pages.privacy()
 
     @mcp.custom_route("/health", methods=["GET"])
     async def health(request):

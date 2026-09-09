@@ -53,7 +53,12 @@ project containing the existing OAuth web client.
 4. **Google Auth Platform → Audience:** keep **External**. While still in
    **Testing**, add both personal addresses as individual test users:
    `aurelien.morel.arthur@gmail.com` and `vmaxmc2@gmail.com`.
-5. **Branding / Verification Center:** check for outstanding requirements and
+5. **Branding:** after deploying the public pages, enter these URLs:
+   - Homepage: `https://mistral-slides-mcp-production.up.railway.app/`
+   - Privacy policy: `https://mistral-slides-mcp-production.up.railway.app/privacy`
+   Both pages are public and require no Google login. Review the privacy text
+   against actual deployment/provider settings before submitting branding.
+6. **Branding / Verification Center:** check for outstanding requirements and
    accurate app/support details. Follow any requirements shown for your project.
    Publishing status and brand verification are separate; don't claim a verified
    name/logo until Google confirms it.
