@@ -15,12 +15,13 @@ from .outline import DEFAULT_MODEL
 from .layouts import text_role, edit_limit, text_budget, is_decoration
 from .styling import style_capability
 from . import gradients
+from . import slide_images
 
 LIMITATIONS = [
     "Text and style metadata only; no visual preview, layout assessment, notes, or master/layout content.",
     "Only original recognized ungrouped text boxes can be edited, including headings, comparisons, messages and steps.",
     "edit_slide preserves paragraph count and formatting; apply_default_style separately applies default colors/font to supported slides.",
-    "Images, charts, tables, groups, and mixed-style text are not editable.",
+    "Image contents are not visually interpreted. set_slide_image adds/replaces one attachment on supported message/bullet slides; edit_slide changes only text.",
     "add_slide inserts one new content slide; edit_slide cannot add/remove items or change layouts. Never regenerate a replacement deck for an unsupported edit.",
     "Original sources and generation instructions are not stored; supply needed context again.",
 ]
@@ -121,7 +122,7 @@ def read_deck(creds: Any, presentation_id: str) -> tuple[Any, dict, dict]:
         "title": raw.get("title", ""), "revision_id": raw.get("revisionId"),
         "limitations": LIMITATIONS,
         "slides": [{"slide_id": page["objectId"], "position": index,
-                    "style": style_capability(page),
+                    "style": style_capability(page), "image_placement": slide_images.capability(page),
                     "elements": [normalize_element(e) for e in page.get("pageElements", [])]}
                    for index, page in enumerate(raw.get("slides", []), 1)],
     }
@@ -210,15 +211,28 @@ def edit_deck_slide(creds: Any, presentation_id: str, slide_id: str,
     slide = next((s for s in deck["slides"] if s["slide_id"] == slide_id), None)
     if slide is None:
         raise EditError("Slide not found. Read the deck and use its current slide IDs.")
+    page = next(p for p in raw["slides"] if p["objectId"] == slide_id)
     targets = {e["element_id"]: {"element_id": e["element_id"], "paragraphs": e["paragraphs"],
                "max_total_characters": max(sum(map(len, e["paragraphs"])), text_budget(e["element_id"])),
                "max_characters": [max(len(p), edit_limit(e["element_id"], len(e["paragraphs"]))) for p in e["paragraphs"]]}
                for e in slide["elements"] if e["editable"]}
+    if slide_images.has_image(page):
+        for element_id, target in targets.items():
+            role = text_role(element_id)
+            if role in slide_images.LIMITS:
+                per_paragraph, total = slide_images.LIMITS[role]
+                target['max_characters'] = [per_paragraph] * len(target['paragraphs'])
+                target['max_total_characters'] = total
     if not targets:
         raise EditError("No supported text boxes on this slide. Read its unsupported_reason fields for details.")
     if len(json.dumps(slide)) > 30000:
         raise EditError("This slide is too large for text revision in this version.")
     replacements = propose_edit(slide, targets, instructions, source_content)
+    if slide_images.has_image(page):
+        for replacement in replacements:
+            role = text_role(replacement['element_id'])
+            if role in slide_images.LIMITS and not slide_images.text_fits(role, replacement['paragraphs']):
+                raise EditError('No edit made. The proposed wording exceeds the text budget beside an image.')
     page = next(p for p in raw["slides"] if p["objectId"] == slide_id)
     raw_elements = {e["objectId"]: e for e in page.get("pageElements", [])}
     requests, changes = [], []

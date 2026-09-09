@@ -9,12 +9,13 @@ submission work is tracked in [submission checklist](submission-checklist.md).
 
 ## Tools
 
-Eight tools are exposed:
+Nine tools are exposed:
 
 | Tool | Contract and purpose |
 | --- | --- |
 | `generate_presentation` | `topic?`, `slide_count=3`, `audience?`, `tone?`, `basis="topic"`, `source_content?`, `instructions?`. Creates a new deck. |
 | `get_presentation` | `presentation_id`. Reads current text, slide/element IDs, revision, text editability, style support, and formatting metadata. |
+| `set_slide_image` | `presentation_id`, `slide_id`, `expected_revision_id`, `image_url`, `replace=false`. Adds or explicitly replaces one attached image on a supported existing slide. |
 | `edit_slide` | `presentation_id`, `slide_id`, `expected_revision_id`, `instructions`, `source_content?`. Revises supported text on one existing slide. |
 | `add_slide` | `presentation_id`, `expected_revision_id`, `instructions`, `source_content?`, `after_slide_id?`. Inserts one content slide into the existing deck; appends by default. |
 | `get_default_style` | No arguments. Returns the connection's current colors/font and readable Markdown summary. |
@@ -115,6 +116,34 @@ renderer validates again before creating a Google file.
 
 ## Conversational UX
 
+### Images on existing slides
+
+Reading exposes `image_placement` support and whether a managed image is present.
+`set_slide_image` accepts a fresh Vibe attachment URL on the configured storage
+host. It supports original key-message and bullet slides: title remains full
+width, text narrows on the left, and one contained image is centered on the right.
+Text IDs, wording, formatting, the same deck and neighboring slides are preserved.
+The original 720 × 405 point page size, supported text geometry and original font
+sizes are required. Manual layout changes are rejected.
+
+Text limits beside images: 90 characters for a message, or 1–3 bullets with 55
+characters per item and 150 total, plus a conservative wrapping check. Wide text
+can be rejected below those limits. Wording edits retain these limits; styling
+preserves the image. Slide insertion can inherit its style without copying it.
+
+PNG/JPEG/WebP attachments must be single-frame, at most 5 MiB and 20 megapixels.
+Normalization honors orientation, retains transparency, strips metadata and bounds
+the longest side to 1600 pixels. Temporary publication uses existing connection
+storage and cleanup. Failed retrieval leaves the deck unchanged and requests
+re-upload. Uncertain Google writes require rereading the reported image ID before
+retrying. Occupied slots require an explicit replacement request and `replace=true`.
+
+Fresh attachment forwarding was verified in the
+[isolated probe](../scripts/investigation/image_attachment_probe/RESULTS.md).
+Google insertion for this new flow still requires deployed acceptance.
+
+### Requests and defaults
+
 A creation request with a topic or source content should generate directly, using
 defaults without a create/edit menu, mandatory outline approval, or style selector.
 Ask only for missing required information or clarification of unsupported requests.
@@ -138,7 +167,7 @@ Authentication and the connection UI are frozen for the pilot as of 2026-09-09.
 [auth reference](auth.md) defines the accepted behavior; remaining work is
 configuration, release checks, and bug fixes, not auth feature expansion.
 
-- Automated validation on 2026-09-09: all 77 tests passed, covering schemas, API request construction,
+- Automated validation on 2026-09-09: all 99 tests passed, covering schemas, API request construction,
   MCP discovery/invocation, authentication isolation, preferences, supported edits,
   partial style updates, URL normalization, and revision/error handling.
   This is local mocked-provider evidence, not deployed acceptance.
@@ -165,7 +194,8 @@ configuration, release checks, and bug fixes, not auth feature expansion.
 ## Outside this freeze
 
 - More layouts, arbitrary visual design, templates, native theme imports,
-  content-slide images, and image editing/regeneration.
+  creation-time attachments, multiple images per slide, cropping, image removal,
+  placement on comparisons/steps/covers, and image content editing/regeneration.
 - Slide removal/reordering, changing list counts, layout conversion,
   arbitrary/rich text editing, speaker notes, undo, folder selection, and export.
 - Google-account-scoped preferences and persisted source briefs.

@@ -12,7 +12,7 @@ After acceptance testing these flows, freeze new features and focus on correctne
 visual fit, deployment, OAuth publishing, repository cleanup, and code ownership.
 Adding/removing items and converting existing layouts remain deferred.
 
-Documentation synchronized on 2026-09-09. Local automated validation: 83 tests
+Documentation synchronized on 2026-09-09. Local automated validation: 99 tests
 passed. Unchecked live, publishing and ownership tasks below remain pending.
 
 Auth and the connection UI are frozen for the pilot; [auth reference](auth.md) is the
@@ -102,6 +102,12 @@ present onboarding as unrestricted.
 
 ## 5. Run the final deployed acceptance pass
 
+- [ ] Add a fresh attachment to short message/bullet slides, then explicitly
+  replace it. Verify full-image fit, transparency/orientation, preserved wording,
+  fonts and deck URL. Revise wording/style afterward. Check crowded text,
+  unsupported layouts, occupied slots and re-upload recovery. Local geometry
+  previews and mocked tests do not replace this Google acceptance.
+
 Refresh Vibe's connector tool definitions after deployment. Automated tests mock
 Google and Mistral; these checks exercise the real providers and conversation.
 
@@ -143,7 +149,7 @@ Google and Mistral; these checks exercise the real providers and conversation.
 - [ ] Check that fonts, bullets, positions, and unsupported elements survive the edit.
 - [ ] Manually edit text in Google Slides, then revise it through Vibe; verify the
   tool uses the current wording. Include an emoji to exercise Unicode handling.
-- [ ] Request an unsupported operation, such as adding an image or reordering
+- [ ] Request an unsupported operation, such as adding a second image to one slide or reordering
   slides; verify a clear explanation and no unintended changes.
 - [ ] Submit an edit with a stale revision; verify rejection and preservation of
   the intervening manual change.

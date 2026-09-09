@@ -18,7 +18,7 @@ See the [user guide](docs/user-guide.md) for access details and example prompts.
 
 ## What it does
 
-Eight tools cover presentation generation, reading, text revision, slide insertion,
+Nine tools cover presentation generation, reading, text revision, slide insertion,
 deck styling, and reading/saving/resetting style defaults. Content supports key
 messages, bullets, comparisons, and steps, with a generated cover image.
 
@@ -79,10 +79,11 @@ or dependency-injection framework.
 | Inspect current text, IDs and revision | `get_presentation` |
 | Revise one slide's supported text | `edit_slide` |
 | Insert one content slide | `add_slide` |
+| Add or replace an attachment on an existing slide | `set_slide_image` |
 | Change this deck's appearance | `set_presentation_style` |
 | Inspect, save or reset future defaults | `get_default_style`, `set_default_style`, `reset_default_style` |
 
-Eight tools are a deliberate breadth tradeoff: five deck operations and three
+Nine tools are a deliberate breadth tradeoff: six deck operations and three
 preference operations. None exposes rendering primitives, model calls or Google
 batch requests. Existing names are preserved for connected clients. A smaller
 future interface could consolidate preference management, but would need a clear
@@ -186,6 +187,19 @@ checks, not claims made by the mocked test suite.
    shared storage before scaling beyond one instance.
 4. Track provider latency, failure rates and spend per operation; add a repeatable
    live canary and visual regression examples for the supported layouts.
+
+## Image attachments
+
+Image attachments can be added after generation with `set_slide_image` on short
+key-message/bullet slides. Text stays left; the complete image fits on the right.
+Explicit replacement reuses the same slot. Wording, font, colors and other slides
+are preserved. `attachments.py` retrieves and normalizes the fresh attachment;
+`slide_images.py` validates layout and applies the revision-protected batch.
+Neither imports investigation code. Downloads accept one exact `VIBE_IMAGE_HOST`
+(default `mistralaichatupprodswe.blob.core.windows.net`), with a 15-second network
+deadline, 5 MiB and 20-megapixel limits, no redirects and no forwarded credentials.
+Only our short-lived asset URL goes to Google. [Image UX and limits](docs/image-editing-ux.md).
+This new flow still needs deployed Google/Vibe acceptance.
 
 ## Pilot usage controls
 

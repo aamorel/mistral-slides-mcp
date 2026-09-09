@@ -51,12 +51,24 @@ is not recolored. Custom templates are not supported.
 After creating a deck, try: “Make slide two less technical.” The connector can
 revise supported text at the same link; it cannot rearrange slides or edit images.
 
+After the image-enabled version is deployed and connector definitions refreshed,
+attach a PNG, JPEG or WebP and ask: “Add this image to slide 2.” Positions count
+the cover. On supported key-message/bullet slides, text stays left and the full
+image fits on the right, without cropping or stretching. Wording, fonts, colors
+and neighboring slides stay unchanged. To replace it, attach another image and
+ask “Replace the image on slide 2 with this one.” Each slide has one image slot.
+
+If text is too long, shorten it first: up to 90 message characters or 3 bullets
+of 55 characters each, 150 total. Wide text may need further shortening. If the
+attachment is unavailable, upload it again. Subsequent wording and style edits
+still work. Creation-time images, image removal, multiple images on one slide,
+and placement on covers/comparisons/steps are unsupported.
+
 To extend the same deck, try: “Add a slide about risks after slide two” or
 “Append a conclusion using these notes.” One content slide is added per call;
 existing slides and the link are preserved. It matches readable existing colors
 and font, falling back to your current saved default with an explicit notice if
-needed. Adding images, removing/reordering slides, and changing existing layouts
-remain unsupported.
+needed. Removing/reordering slides and arbitrary layout conversion remain unsupported.
 
 **Access:** this is a client-only pilot for approved company Google accounts and invited personal testers. The last recorded deployment uses Google Testing: until the production rollout is confirmed, send me the Google email you’ll use so I can add you as a tester. Google may show an “app not verified” warning because this is a test app; continue only if you recognize this invitation and are comfortable granting access.
 

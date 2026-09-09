@@ -615,6 +615,7 @@ source = { editable = "." }
 dependencies = [
     { name = "google-api-python-client" },
     { name = "google-auth-oauthlib" },
+    { name = "h11" },
     { name = "mcp", extra = ["cli"] },
     { name = "mistralai" },
     { name = "pillow" },
@@ -624,6 +625,7 @@ dependencies = [
 requires-dist = [
     { name = "google-api-python-client", specifier = ">=2.200.0" },
     { name = "google-auth-oauthlib", specifier = ">=1.4.1" },
+    { name = "h11", specifier = ">=0.16" },
     { name = "mcp", extras = ["cli"] },
     { name = "mistralai", specifier = ">=2.9.4" },
     { name = "pillow", specifier = ">=11" },

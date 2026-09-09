@@ -29,6 +29,7 @@ from .oauth import GoogleOAuthProvider, SCOPE, ResourceTokenHandler
 
 from .presentation_service import STYLE_GUIDANCE
 from . import presentation_service
+from . import attachments, slide_images
 from .observability import request_id, configure_logging
 
 
@@ -249,6 +250,39 @@ async def add_slide(
         raise ToolError("Could not prepare the new slide. No insertion was sent to Google; try again later.") from None
 
 
+async def set_slide_image(
+    presentation_id: PresentationId,
+    slide_id: SlideId,
+    expected_revision_id: Annotated[str, Field(min_length=1, max_length=500)],
+    image_url: Annotated[str, Field(min_length=1, max_length=16384)],
+    replace: bool = False,
+) -> dict[str, Any]:
+    """Add ONE attached image beside the text on an existing key-message or bullet slide.
+
+    Read first for slide IDs, revision and image_placement support. Resolve visible
+    positions including the cover. Pass the exact fresh Vibe attachment HTTPS URL,
+    preserving its query; never invent a reference or send cookies/API keys.
+    One image per slide; replace=true only for an explicit replacement request.
+    Text stays on the left, full image on the right, without cropping/stretching.
+    Preserves wording, font, colors and other slides. Requires up to 90 message
+    characters or up to 3 bullets of 55 characters each, 150 total. If text is too
+    long, offer a separate wording edit; never silently shorten it. No cover,
+    comparisons, steps, custom layouts, image removal or multiple images per slide.
+    On unavailable attachment, request re-upload. After an uncertain write, reread
+    and check image_id before retrying. No automatic mutation retries.
+    """
+    if not expected_revision_id.strip():
+        raise ToolError('Expected revision must not be blank.')
+    creds = await connected_credentials()
+    try:
+        return await slide_images.set_image(creds, connection_subject(), presentation_id,
+            slide_id, expected_revision_id, image_url, replace)
+    except (editing.EditError, attachments.AttachmentError) as exc:
+        raise ToolError(str(exc)) from None
+    except Exception:
+        raise ToolError('Image placement could not be completed. Read the deck before retrying; do not assume nothing changed.') from None
+
+
 async def edit_slide(
     presentation_id: PresentationId,
     slide_id: SlideId,
@@ -346,7 +380,12 @@ def create_app():
                       "Pass relevant source facts and constraints; never fabricate them. Report changes and warnings honestly. "
                       "Route wording changes with fixed item counts to edit_slide, new content slides to add_slide, "
                       "and deck colors/font changes to set_presentation_style. "
-                      "Adding/removing list items, layout conversion, images, notes, deleting/moving slides are unsupported. "
+                      "Use set_slide_image for one freshly attached image on an existing supported key-message or bullet slide. "
+                      "Read image_placement support first; visible positions count the cover as slide 1. "
+                      "Default to adding; replace=true only when the user requests replacing the existing image. "
+                      "Show the full image beside unchanged text; no placement questionnaire is needed. "
+                      "Use the exact fresh attachment reference, never invent URLs; request re-upload when retrieval fails. "
+                      "Creation-time attachments, multiple images per slide, image removal, adding/removing list items, general layout conversion, notes, deleting/moving slides are unsupported. "
                       "Evaluate the entire request before calling a mutation tool; explain unsupported parts and clarify scope first. "
                       "Never call a tool merely to test an explicitly unsupported request. "
                       "Acknowledge unsupported operations; never silently substitute deck creation for editing. "
@@ -367,6 +406,8 @@ def create_app():
     )
     mcp.tool(annotations=ToolAnnotations(read_only_hint=False, destructive_hint=True,
                                        idempotent_hint=True, open_world_hint=True))(set_presentation_style)
+    mcp.tool(annotations=ToolAnnotations(read_only_hint=False, destructive_hint=True,
+                                       idempotent_hint=False, open_world_hint=True))(set_slide_image)
     mcp.tool(annotations=ToolAnnotations(read_only_hint=False, destructive_hint=False,
                                        idempotent_hint=False, open_world_hint=True))(generate_presentation)
     mcp.tool(annotations=ToolAnnotations(read_only_hint=True, destructive_hint=False,

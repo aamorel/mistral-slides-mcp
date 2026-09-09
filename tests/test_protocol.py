@@ -49,7 +49,11 @@ class ProtocolTests(unittest.IsolatedAsyncioTestCase):
                     async with Client(streamable_http_client(f'http://127.0.0.1:{port}/mcp', http_client=http)) as client:
                         tools = await client.list_tools()
                         discovered = {t.name: t for t in tools.tools}
-                        self.assertEqual(set(discovered), {'generate_presentation', 'get_presentation', 'edit_slide', 'add_slide', 'get_default_style', 'set_default_style', 'reset_default_style', 'set_presentation_style'})
+                        self.assertEqual(set(discovered), {'generate_presentation', 'get_presentation', 'edit_slide', 'add_slide', 'get_default_style', 'set_default_style', 'reset_default_style', 'set_presentation_style', 'set_slide_image'})
+                        self.assertFalse(discovered['set_slide_image'].annotations.read_only_hint)
+                        self.assertTrue(discovered['set_slide_image'].annotations.destructive_hint)
+                        self.assertEqual(set(discovered['set_slide_image'].input_schema['required']),
+                                         {'presentation_id', 'slide_id', 'expected_revision_id', 'image_url'})
                         self.assertTrue(discovered['get_presentation'].annotations.read_only_hint)
                         self.assertFalse(discovered['generate_presentation'].annotations.idempotent_hint)
                         self.assertFalse(discovered['generate_presentation'].annotations.destructive_hint)

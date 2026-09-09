@@ -6,6 +6,7 @@ from googleapiclient.errors import HttpError
 from .slides import rgb
 from .layouts import color_role, is_decoration
 from . import gradients
+from .slide_images import managed_image
 
 BACKGROUND_FIELDS = ('background', 'gradient', 'gradient_color')
 
@@ -25,6 +26,8 @@ def inspect_slide(page):
     elements = page.get('pageElements', [])
     for element in elements:
         element_id = element['objectId']
+        if suffix != '0' and managed_image(element, suffix):
+            continue
         data = gradients.inspect(element, suffix)
         if data is not None and suffix != '0':
             gradient = data
