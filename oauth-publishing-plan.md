@@ -1,6 +1,8 @@
 # Plan: Google authorization without a tester list
 
-Status: deferred. No Google Console or Railway changes made.
+Status: deferred. This is a pending rollout plan, not evidence of publication.
+The 2026-09-09 documentation review made no Google Console or Railway changes.
+See the [current MVP scope](src/mcp_slides/mvp/SCOPE.md) for implemented capabilities.
 
 ## Goal
 

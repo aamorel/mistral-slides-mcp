@@ -1,10 +1,25 @@
 # MCP Slides MVP
 
-Eight MCP tools create, read, and revise Google Slides presentations and manage saved default styles.
+Eight MCP tools create, read, revise, extend and style Google Slides presentations,
+and manage saved defaults for future decks.
 Generation uses a topic or supplied content, Mistral drafts the text, and
 **each authenticated user's own Google account** provides access and storage.
 
 MCP URL: https://mistral-slides-mcp-production.up.railway.app/mcp
+
+## Documentation
+
+- [User guide](USER-README.md): connect and try example requests.
+- [Current MVP scope](src/mcp_slides/mvp/SCOPE.md): supported tools and limits.
+- [Submission checklist](submission-plan.md): remaining acceptance and handoff work.
+- [OAuth publishing plan](oauth-publishing-plan.md): remove tester-only onboarding.
+- [Original assignment](scope.md): preserved as supplied.
+- [Historical investigation](investigation-questions.md): superseded experiments.
+
+The code and current scope define capabilities; the historical log is not a setup
+guide. Last local validation on 2026-09-09: all 61 automated tests passed. Deployment
+of the latest commit and live acceptance still need confirmation; a Git push alone
+is not evidence of either.
 
 ## Connect from Vibe
 
@@ -43,8 +58,8 @@ https://mistral-slides-mcp-production.up.railway.app/auth/google/callback
 ```
 
 The Google Slides API must be enabled. The only Google scope is `drive.file`.
-While the Google OAuth app is in testing mode, each account authorizing access
-must be added as a test user. Publishing the Google OAuth app is a separate step
+The last recorded Google OAuth configuration is testing mode. In that mode, each
+account authorizing access must be added as a test user. Publishing the Google OAuth app is a separate step
 before unrestricted reviewer/user onboarding; implementing per-user OAuth does
 not remove Google's test-user restrictions.
 
@@ -131,8 +146,8 @@ that specific expansion. Source material is framed as data, not instructions.
 These are model instructions, not a factual verification guarantee; validation
 checks the output structure and lengths, not whether every claim is supported.
 
-The tool description guides Vibe to infer the basis from user intent, briefly
-state its approach, and create immediately when a topic or source text is supplied.
+The tool contract explains the two input modes; shared server instructions guide
+Vibe to create immediately when a topic or source text is supplied.
 A broad request such as “Create a presentation about phones” should call generation
 with `topic="phones"`, using three content slides plus a generated image cover and the saved default style. Missing
 optional details should not trigger questions, a create/edit menu, or outline
@@ -164,12 +179,12 @@ The renderer applies these settings directly; the cover image generator also
 receives the resolved palette.
 
 On the first successful generation in a conversation, the assistant briefly
-mentions customizing default colors and font for future presentations. This
+mentions styling this deck or saving default colors and font for future presentations. This
 optional discovery message belongs in chat; there is no mandatory selection step.
 Once-per-conversation behavior depends on the client's context, not persisted
 server state. A request to style only one deck must not silently change saved
 defaults. Users can explicitly apply their current default to an existing deck
-with `set_presentation_style`; the assistant must not create a replacement without a user request.
+with `set_presentation_style(use_default_style=True)`; the assistant must not create a replacement without a user request.
 
 Google access is checked before spending a Mistral request. Invalid model output
 is retried once and validated before deck creation. If population fails after
@@ -194,11 +209,11 @@ Deck/slide titles are limited to 80 characters. Text must be single-line and
 nonempty. Unknown types, extra fields, and over-budget content are rejected;
 Mistral gets one retry before generation fails. The renderer validates again
 before creating a Google file. `layouts.py` defines fixed geometry and stable text
-roles, shared with reading, editing, and default styling. Mistral supplies content,
+roles, shared with reading, editing, and deck styling. Mistral supplies content,
 never coordinates or Google API requests.
 
-All four types support wording edits and applying the default style. Existing
-simple title/bullet decks remain editable. Edits preserve each box's paragraph
+All four types support wording edits and deck styling. Existing simple
+title/bullet decks remain editable. Edits preserve each box's paragraph
 count and native bullet/number markers; adding/removing items and converting slide
 types remain unsupported. Font sizes and text budgets are conservative, but live
 visual fit still needs checking, especially with customized fonts and long words.
@@ -225,7 +240,7 @@ deployment to pick up the verbatim-link guidance.
 
 ## Code and local tests
 
-- `src/mcp_slides/mvp/`: application (`server`, `oauth`, `auth`, `outline`, `layouts`, `slides`, `editing`, `styling`, `preferences`, `backgrounds`).
+- `src/mcp_slides/mvp/`: application (`server`, `oauth`, `auth`, `outline`, `layouts`, `slides`, `editing`, `styling`, `preferences`, `backgrounds`, `insertion`).
 - `scripts/`, `src/mcp_slides/ping_server.py`, `src/mcp_slides/google_auth.py`:
   preserved investigation code, never imported by the MVP.
 - `tests/`: Google consent/PKCE/refresh/revocation tests through HTTP, credential
@@ -250,13 +265,17 @@ Tests mock Google/Mistral and make no external API calls. The protocol test bind
 a temporary localhost port. Real Vibe interoperability and consent from a second
 Google account must also be checked on the deployed version.
 
-## Live validation — 2026-09-08
+## Historical live validation — 2026-09-08
 
 Registered **Mistral Slides Personal** (`mistral_slides_personal_4365`) through
 Studio's custom connector UI against the deployed `/mcp` endpoint. Studio detected
 OAuth 2.1 and dynamically registered `mistral-mcp-client` without manually entered
 client credentials. Its return URI was
 `https://callback.mistral.ai/v1/integrations_auth/oauth2_callback`.
+
+This recorded session predates the latest tool changes. It is not acceptance
+evidence for the current release. Earlier standalone Google authorization and
+generation were reported successful in the investigation log.
 
 The live browser flow reached our consent page, Google's account chooser, and
 Google's testing-mode warning for the existing test account. Completion of Google
@@ -312,8 +331,8 @@ were interpreted. Image alt text is returned only when provided by Google.
 Speaker notes, inherited master/layout contents and visual previews are omitted
 explicitly in the returned limitations.
 
-After successful generation, the server instructions and generation tool description
-guide Vibe to show the deck link followed by a brief optional invitation, such as
+After successful generation, shared server instructions guide Vibe to show the
+deck link followed by a brief optional invitation, such as
 "You can ask me to revise a slide—for example, make slide two less technical or
 shorten the conclusion." Examples must fit the actual deck and the user's language.
 This appears in chat, not on the slides. It does not require a response or trigger
@@ -360,7 +379,7 @@ Results include `status=added`, the same `presentation_url`, `slide_id`, one-bas
 If a write is unconfirmed, the error identifies the expected new slide ID: reread
 and check it before deciding to retry. Never blindly retry a non-idempotent addition.
 
-Tool descriptions explicitly route wording to `edit_slide`, additions to
+Shared server instructions route wording to `edit_slide`, additions to
 `add_slide`, and deck style changes to `set_presentation_style`. They require
 checking the entire request before mutation: unsupported requirements must be
 explained and scope clarified, not silently discarded or tested by calling a tool.
@@ -384,7 +403,7 @@ Editing is deliberately narrow:
   and bullet structure remain intact, and insertion occurs before deletion so
   neighboring text styling is retained. Shapes and their geometry are not
   rebuilt. Visual fit and live formatting still need manual verification.
-- `edit_slide` does not add slides; use `add_slide` for that. No slide removal, reordering, layout/design changes, image/chart/table
+- `edit_slide` does not add slides; use `add_slide` for that. No slide removal, reordering, layout conversion, image/chart/table
   edits, notes edits, undo, or visual assessment. The assistant is instructed to
   explain unsupported requests. Mistral can also decline a request; unsupported
   and invalid proposals cause no write. Model IDs, paragraph counts and lengths
@@ -396,8 +415,10 @@ Editing is deliberately narrow:
 
 The result reports `status` (`updated` or `unchanged`), the same presentation URL,
 slide ID/position and exact `before`/`after` paragraph changes. It describes the
-acknowledged write, not a later readback or visual verification. Read again for
-any subsequent edit. Errors do not claim success or create replacement decks.
+acknowledged write, not a later readback or visual verification. Reuse the returned
+`revision_id` only when it is available and sufficient context is already known;
+otherwise read again before a subsequent edit. Errors do not claim success or
+create replacement decks.
 
 Implementation references: [Google text editing](https://developers.google.com/workspace/slides/api/guides/styling)
 and [atomic batches and revision control](https://developers.google.com/workspace/slides/api/reference/rest/v1/presentations/batchUpdate).

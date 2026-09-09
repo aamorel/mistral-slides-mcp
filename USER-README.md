@@ -1,7 +1,7 @@
 # Try the Google Slides connector
 
-Generate from a topic or your notes, customize your default colors and font,
-add slides to an existing presentation, and revise wording through chat. Every new presentation uses your default style
+Generate from a topic or your notes, style a presentation, save defaults for future
+decks, add slides, and revise wording through chat. Every new presentation uses your default style
 automatically. Before customization, it uses white backgrounds, blue titles,
 charcoal body text, and Arial.
 
@@ -13,7 +13,7 @@ charcoal body text, and Arial.
 5. Enable the connector in a chat and ask:
    > Create a 3-slide presentation about a weekend in Paris using Mistral Slides.
 
-Every new deck includes an extra title slide with a generated background image.
+Generation supports 1–6 content slides. Every new deck includes an extra title slide with a generated background image.
 “Three slides” creates one cover plus three content slides. Image generation may
 take a little longer; the title stays editable.
 
@@ -25,11 +25,18 @@ converting an existing slide to another layout are not supported yet.
 
 The presentation should appear in **your Google Drive**. Open the returned link—or open it directly in Drive if the link doesn’t work.
 
-For a different look, ask: “Change my default background to cream and my font to
-Georgia.” The assistant preserves your other settings. Changes apply to future
-presentations. To update an existing deck too, ask: “Apply my default style to
-the trees presentation.” It keeps the same link, wording, layout, and cover image.
-Unsupported slides are skipped and reported. Custom templates are not supported.
+For a different look on **this presentation**, ask: “Make this deck's titles dark
+blue and use Georgia.” Its other formatting stays unchanged, and your saved
+defaults do not change.
+
+For **future presentations**, ask: “Use cream backgrounds and Georgia by default.”
+Your other saved settings are preserved; existing presentations do not change.
+To apply all saved defaults to an existing deck, ask: “Apply my default style to
+the trees presentation.”
+
+Deck styling keeps the same link, wording, layout, and cover image. Unsupported
+slides or unreadable color combinations are skipped and reported. The cover image
+is not recolored. Custom templates are not supported.
 
 After creating a deck, try: “Make slide two less technical.” The connector can
 revise supported text at the same link; it cannot rearrange slides or edit images.
@@ -52,3 +59,7 @@ my saved style?” or “Reset my default style.” Supported fonts: Arial, Verd
 Georgia, and Trebuchet MS. Colors must remain readable. Settings apply to this
 connection and apply automatically to future decks; updating an existing deck
 requires a separate request. Reconnecting starts a new preference scope.
+
+You can paste a Google Slides link when referring to a deck. Access is limited to
+files available to this connector and your connected account. For implementation
+limits, see the [current MVP scope](src/mcp_slides/mvp/SCOPE.md).

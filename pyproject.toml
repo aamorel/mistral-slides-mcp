@@ -1,8 +1,8 @@
 [project]
 name = "mcp-slides"
 version = "0.1.0"
-description = "Investigation project for a Vibe custom MCP Connector that creates Google Slides decks."
-readme = "scope.md"
+description = "MCP connector for creating, reading, revising, extending and styling Google Slides presentations."
+readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "google-api-python-client>=2.200.0",

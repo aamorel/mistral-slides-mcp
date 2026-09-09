@@ -1,6 +1,14 @@
-# MCP Slides Investigation Questions
+# Historical MCP Slides Investigation — 2026-09-08
 
-This document turns the current unknowns into concrete tests. The goal is to answer these before building the final minimal implementation, so the MVP is based on observed behavior instead of assumptions.
+This is an archived record of experiments and decisions before the current MVP.
+The one-tool, static-bearer, separate-Google-link design below is superseded;
+these setup commands and “next actions” are historical, not deployment guidance.
+The current server exposes eight tools, uses per-connection OAuth, and supports
+four content layouts, insertion, deck styling and saved preferences.
+
+Use [README.md](README.md) for setup, the [current MVP scope](src/mcp_slides/mvp/SCOPE.md)
+for capabilities, and [submission-plan.md](submission-plan.md) for remaining work.
+Reported experimental successes do not establish acceptance of the current release.
 
 ## Target MVP
 

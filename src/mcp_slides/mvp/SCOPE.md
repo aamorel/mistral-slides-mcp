@@ -2,7 +2,8 @@
 
 The MVP lets a user connect the MCP in Vibe, authorize their own Google account,
 and create and revise presentations in their own Google Drive through conversation.
-This is the first feature-freeze candidate: the next work is acceptance testing,
+This document describes the current implementation, extending the
+[original assignment](../../../scope.md). It is the feature-freeze candidate: the next work is acceptance testing,
 fixes, OAuth publishing, repository cleanup, and code ownership. The remaining
 submission work is tracked in [submission-plan.md](../../../submission-plan.md).
 
@@ -17,9 +18,13 @@ Eight tools are exposed:
 | `edit_slide` | `presentation_id`, `slide_id`, `expected_revision_id`, `instructions`, `source_content?`. Revises supported text on one existing slide. |
 | `add_slide` | `presentation_id`, `expected_revision_id`, `instructions`, `source_content?`, `after_slide_id?`. Inserts one content slide into the existing deck; appends by default. |
 | `get_default_style` | No arguments. Returns the connection's current colors/font and readable Markdown summary. |
-| `set_default_style` | `settings`. Saves a complete validated default configuration; partial requests first read and merge existing settings. |
+| `set_default_style` | `settings`. Saves partial colors/font changes for future decks; the server merges and validates atomically. |
 | `reset_default_style` | No arguments. Restores the built-in default settings for the connection. |
-| `apply_default_style` | `presentation_id`, `expected_revision_id`. Applies the connection's current default to supported existing slides at the same URL. |
+| `set_presentation_style` | `presentation_id`, `expected_revision_id`, `changes?`, `use_default_style=false`. Changes this deck only. Supply partial changes or explicitly apply all saved defaults, never both. |
+
+All `presentation_id` arguments accept a Google Slides URL or ID. Reading returns
+per-slide `style` metadata separately from text editability. No new tools are
+needed for partial style changes.
 
 ## Generation
 
@@ -47,24 +52,30 @@ Deck and content-slide titles are limited to 80 characters. Content is nonempty,
 single-line plain text. Invalid outlines get one model retry, then fail; the
 renderer validates again before creating a Google file.
 
-## Default style sheet
+## Presentation style and future defaults
 
-- Styling uses one default configuration per connection, stored in SQLite.
+- Future-deck defaults use one configuration per connection, stored in SQLite.
   The style sheet is a readable Markdown representation of validated settings,
   not a physical editable `.md` file or executable Markdown instructions.
 - Settings are background, title and body colors (`#RRGGBB`), plus Arial, Verdana,
   Georgia, or Trebuchet MS. Text colors require at least 4.5:1 background contrast.
 - Before customization, defaults are white (`#FFFFFF`), blue titles (`#244B63`),
-  charcoal body text (`#263238`), and Arial. There are no named style presets or
-  per-deck style overrides.
+  charcoal body text (`#263238`), and Arial. There are no named style presets.
+- `set_presentation_style(changes=...)` changes only the supplied colors/font on
+  this deck, preserving unspecified formatting on each slide. It never saves defaults.
+- `set_default_style(settings=...)` merges supplied fields with current defaults
+  in one transaction. Empty updates, nulls and invalid combinations are rejected.
 - New decks automatically use the current default. Saving or resetting it does
   not modify existing decks. Applying it to an existing presentation requires
-  an explicit request and a revision-protected call to `apply_default_style`.
-- Applying defaults updates supported slide backgrounds, text colors/font and
+  an explicit request and a revision-protected call to
+  `set_presentation_style(use_default_style=True)`.
+- Deck styling can update supported slide backgrounds, text colors/font and
   the cover title band. It preserves wording, sizes, emphasis, bullets, layout,
   order, and the cover image; that image is not regenerated or recolored.
-- Slides containing unsupported elements are skipped entirely to avoid mismatched
-  text/background contrast. Results report applied slide IDs and skipped reasons.
+- Slides containing unsupported elements, unreadable colors needed for validation,
+  or insufficient resulting contrast are skipped entirely with reasons. Partial
+  color changes are checked against retained colors; font-only changes do not
+  require color inference. No model call is needed for styling.
 - Settings survive restarts and token refresh, but belong to the connection,
   not the Google account. Reconnecting starts a new preference scope;
   disconnect/revocation deletes that connection's preferences.
@@ -79,11 +90,15 @@ renderer validates again before creating a Google file.
   paragraphs, linked text, and automatic text fields are unsupported.
 - Text edits preserve each box's paragraph/item count and surrounding formatting.
   They cannot add/remove bullets or steps, or convert an existing slide's layout.
-- All deck mutation tools reread the deck and use Google's required revision check.
+- All tools that mutate existing decks reread the deck and use Google's required revision check.
   Stale revisions prevent writes. Unconfirmed writes are not automatically retried;
   the caller must reread before deciding what to do next.
-- Text edits report updated/unchanged and exact changes. Style application reports
-  applied/unsupported with skipped slides; neither implies visual verification.
+- Edit, insertion and styling results share `status`, `presentation_url`,
+  `revision_id`, `changes` and `warnings`, plus operation-specific fields. Writes
+  return the updated revision from Google when supplied, otherwise null. Reuse it
+  only with sufficient context; missing revisions or conflicts require a fresh read.
+- Text edits report updated/unchanged; insertion reports added; styling reports
+  applied/unsupported with skipped slides. None implies visual verification.
 - `add_slide` inserts one content slide at the end or after an existing slide,
   preserving existing objects, manual edits and the same URL. All four content
   types are supported. Original 720 × 405 point page size is required; serialized
@@ -103,8 +118,10 @@ defaults without a create/edit menu, mandatory outline approval, or style select
 Ask only for missing required information or clarification of unsupported requests.
 
 After success, copy the returned URL verbatim and briefly invite relevant wording
-edits or adding a content slide. Once per conversation, introduce default-style customization and its explicit
-application to an existing deck. Generation results include current style guidance
+edits or adding a content slide. Once per conversation, introduce styling this
+deck or saving preferences for future decks. “Make the titles blue” applies to
+the current deck; “Use blue titles by default” changes future preferences. A
+request to do both uses both tools. Generation results include current style guidance
 so the assistant does not rely solely on cached metadata or old chat messages.
 Refresh tool metadata and use a fresh conversation when testing contract changes;
 client-generated wording still needs live verification.
@@ -115,15 +132,17 @@ being asked.
 
 ## Validation and release constraints
 
-- Automated coverage: 56 tests covering schemas, API request construction,
+- Automated validation on 2026-09-09: all 61 tests passed, covering schemas, API request construction,
   MCP discovery/invocation, authentication isolation, preferences, supported edits,
-  style application, and revision/error handling.
+  partial style updates, URL normalization, and revision/error handling.
+  This is local mocked-provider evidence, not deployed acceptance.
 - A live Mistral text-generation check successfully produced all four types.
   Earlier live Google authorization and generation were tested by the user.
 - Live acceptance of the latest layouts and mutations remains pending: visual fit
   at text limits and across fonts, source fidelity, links, numbering preservation,
   cover image handling, skipped slides, and conversational feature discovery.
-- Google OAuth remains in testing: accounts must be approved testers. Publishing
+- Last recorded Google OAuth state is testing: accounts must be approved testers.
+  This documentation review did not inspect the Console or deployment. Publishing
   is a submission task in [oauth-publishing-plan.md](../../../oauth-publishing-plan.md).
 - Google access uses each connection's credentials and `drive.file`; no shared
   Google-account fallback. Mistral calls use the operator's API key.

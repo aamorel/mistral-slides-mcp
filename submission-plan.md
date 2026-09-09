@@ -4,11 +4,16 @@ Goal: deliver a working deployed connector, a clear repository, and an
 implementation I can explain and maintain confidently.
 
 Feature-freeze candidate: generate from topic or source content using key messages,
-flexible bullets, comparisons, and steps; read decks; revise supported text; save
-and apply default colors/font; and automatically generate an image cover.
+flexible bullets, comparisons, and steps; read decks; revise supported text; insert
+content slides; style an existing deck; save defaults for future decks; and
+automatically generate an image cover. The [current scope](src/mcp_slides/mvp/SCOPE.md)
+defines the contract; [scope.md](scope.md) remains the original assignment.
 After acceptance testing these flows, freeze new features and focus on correctness,
 visual fit, deployment, OAuth publishing, repository cleanup, and code ownership.
 Adding/removing items and converting existing layouts remain deferred.
+
+Documentation synchronized on 2026-09-09. Local automated validation: 61 tests
+passed. Unchecked live, publishing and ownership tasks below remain pending.
 
 ## 1. Understand and own the code
 
@@ -17,6 +22,10 @@ Adding/removing items and converting existing layouts remain deferred.
 - [ ] Trace reading and editing: `server.py` → `editing.py`.
   Explain element IDs, supported text, paragraph preservation, revision checks,
   and why reading is both an exposed tool and an internal editing step.
+- [ ] Trace insertion: `server.py` → `insertion.py` → `slides.py`. Explain
+  style inheritance, insertion position, revision checks and duplicate prevention.
+- [ ] Trace styling: `server.py` → `styling.py` / `preferences.py`. Explain this
+  deck versus future defaults, partial updates, contrast checks and skipped slides.
 - [ ] Trace authentication: `server.py` → `oauth.py` → `auth.py`.
   Explain the Vibe-to-server and server-to-Google OAuth relationships, per-user
   credential mapping, refresh, revocation, and the responsibilities of the MCP SDK.
@@ -32,11 +41,11 @@ Adding/removing items and converting existing layouts remain deferred.
   setup, architecture, deployment, and known limitations.
 - [ ] Reconcile historical validation notes with what has actually been tested;
   distinguish user-confirmed results from checks still pending.
-- [ ] Update `USER-README.md` with a short generation-and-editing example and the
+- [x] Update `USER-README.md` with a short generation-and-editing example and the
   actual supported editing boundaries.
-- [ ] Update the package description in `pyproject.toml` and use `README.md` as
+- [x] Update the package description in `pyproject.toml` and use `README.md` as
   the package README. Preserve `scope.md` as the original assignment.
-- [ ] Include `editing.py` in the README's application module list.
+- [x] Include `editing.py` in the README's application module list.
 - [ ] Move investigation and migration history into `docs/` where it improves
   navigation; update links. Clearly label any retained investigation scripts.
 - [ ] Review tracked files and Git history for accidentally committed secrets
@@ -91,7 +100,7 @@ Google and Mistral; these checks exercise the real providers and conversation.
 - [ ] Confirm the post-generation chat invitation offers relevant wording edits.
 - [ ] Generate with built-in defaults and customized colors/font. Check visual fit,
   contrast, bullets, and wording revisions in each. Confirm style discovery is brief and
-  distinguishes saving defaults from explicitly applying them to an existing deck.
+  distinguishes styling this deck from saving defaults for future decks.
 - [ ] Generate all four content types in topic and content mode. Check short and
   maximum-length content, 1 and 5 bullets, asymmetric comparisons, and numbered
   steps in each supported font. Inspect overflow, column spacing and readability.
@@ -99,9 +108,18 @@ Google and Mistral; these checks exercise the real providers and conversation.
   paragraph counts and numbering remain intact. Apply defaults to all four types.
 - [ ] Confirm unsupported requests to add/remove items or convert layouts are
   acknowledged without silently rewriting or creating a replacement deck.
+- [ ] Change only a deck's title color, then only its font. Verify unspecified
+  formatting and saved defaults are preserved, including slides with different
+  existing colors. Check low-contrast and unreadable-color skips.
+- [ ] Pass a Google Slides URL directly when reading or styling a deck.
 - [ ] Apply saved defaults to an existing deck. Verify the same URL, updated
   colors/font and cover band, unchanged text/layout/image, and skipped-slide
   reporting. Check revision conflicts and readback of actual formatting.
+- [ ] Insert after slide two and append a conclusion. Verify slide order, the
+  same URL, unchanged existing slides, inherited style and explicit fallback warnings.
+  Revise the inserted slide; check that an uncertain insertion is read before retrying.
+- [ ] Chain supported mutations using returned revisions when context is sufficient;
+  confirm stale revisions still reject writes and missing revisions require a read.
 - [ ] Revise one slide; verify the same deck URL and unchanged surrounding slides.
 - [ ] Check that fonts, bullets, positions, and unsupported elements survive the edit.
 - [ ] Manually edit text in Google Slides, then revise it through Vibe; verify the
