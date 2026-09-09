@@ -23,11 +23,13 @@ from starlette.concurrency import run_in_threadpool
 from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
-from . import auth, outline, slides, editing, preferences, backgrounds, styling, insertion
+from . import auth, outline, slides, editing, preferences, backgrounds, styling, insertion, gradients
 from .oauth import GoogleOAuthProvider, SCOPE, ResourceTokenHandler
 
 STYLE_GUIDANCE = (
-    "Use set_presentation_style for this deck's colors/font; it never saves defaults. "
+    "Use set_presentation_style for this deck's colors/font/gradient; it never saves defaults. "
+    "A subtle blue gradient is on by default for content slides. Set gradient=false to remove it; "
+    "set gradient=true and gradient_color to enable a different tint. The cover image is preserved. "
     "Use set_default_style only for preferences for future decks. Both accept partial changes. "
     "Use set_presentation_style(use_default_style=True) to apply saved defaults explicitly."
 )
@@ -83,7 +85,7 @@ async def generate_presentation(
     except Exception:
         raise ToolError("The title background could not be generated or prepared. No deck was created. Check Mistral image-generation access and try again.") from None
     try:
-        result = await run_in_threadpool(slides.create_deck, creds, content,
+        result = await run_in_threadpool(gradients.with_images, subject, slides.create_deck, creds, content,
             palette=palette, cover_image_url=image_url)
         result = {**result, "style_settings": saved["settings"], "style_guidance": STYLE_GUIDANCE}
         # Correlate the exact returned URL with a reported link without exposing
@@ -136,7 +138,11 @@ async def get_default_style() -> dict[str, Any]:
 
 
 async def set_default_style(settings: preferences.StyleChanges) -> dict[str, Any]:
-    """Change saved colors/font for FUTURE decks on this connection only.
+    """Change saved colors/font/gradient for FUTURE decks on this connection only.
+
+    Gradient defaults to true with a light blue tint. Set gradient=false for plain
+    backgrounds; gradient_color is the six-digit hex accent color. Direction and
+    subtle intensity are fixed. Contrast is validated across the entire gradient.
 
     Supply only changed settings; the server merges and validates them atomically.
     Existing decks are unchanged. For this deck only, use set_presentation_style.
@@ -188,7 +194,11 @@ async def set_presentation_style(
     changes: preferences.StyleChanges | None = None,
     use_default_style: bool = False,
 ) -> dict[str, Any]:
-    """Change colors/font on THIS deck only; never change saved defaults.
+    """Change colors/font/gradient on THIS deck only; never change saved defaults.
+
+    Set gradient=false to remove the content-slide gradient. Set gradient=true
+    to enable it, with optional gradient_color (#RRGGBB). Supplying gradient_color
+    alone enables that tint on this deck. The cover keeps its generated image.
 
     Supply partial changes OR use_default_style=true to apply all saved defaults.
     Omitted fields retain their current formatting on each slide. Read the deck
@@ -205,7 +215,8 @@ async def set_presentation_style(
         if use_default_style:
             saved = await run_in_threadpool(preferences.get_style, connection_subject())
             changes = preferences.StyleChanges.model_validate(saved['settings'])
-        return await run_in_threadpool(styling.apply_style, creds, presentation_id, expected_revision_id, changes)
+        return await run_in_threadpool(gradients.with_images, connection_subject(), styling.apply_style,
+                                      creds, presentation_id, expected_revision_id, changes)
     except editing.EditError as exc:
         raise ToolError(str(exc)) from None
     except Exception:
@@ -261,7 +272,7 @@ async def add_slide(
         return preferences.StyleSettings.model_validate(saved['settings']).palette()
 
     try:
-        return await run_in_threadpool(insertion.add_deck_slide, creds, presentation_id,
+        return await run_in_threadpool(gradients.with_images, subject, insertion.add_deck_slide, creds, presentation_id,
             expected_revision_id, instructions, source_content, after_slide_id, fallback_palette)
     except editing.EditError as exc:
         raise ToolError(str(exc)) from None

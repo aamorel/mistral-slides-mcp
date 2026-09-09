@@ -3,14 +3,14 @@ import asyncio
 import copy
 import unittest
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 from googleapiclient.errors import HttpError
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp_slides.mvp import editing, preferences, server, styling
 from test_editing import box
 
-SETTINGS = preferences.StyleSettings(background='#FFFFFF', title_color='#D32F2F', body_color='#263238', font_family='Georgia')
+SETTINGS = preferences.StyleSettings(background='#FFFFFF', title_color='#D32F2F', body_color='#263238', font_family='Georgia', gradient=False)
 DECK = {'title': 'Trees', 'revisionId': 'rev1', 'slides': [
     {'objectId': 'mvp_slide_0', 'pageElements': [box('mvp_title_0', ['Trees']),
         {'objectId': 'mvp_cover_band', 'shape': {'shapeType': 'TEXT_BOX'}},
@@ -94,7 +94,7 @@ class StylingTests(unittest.TestCase):
         with patch.object(server, 'get_access_token', return_value=SimpleNamespace(subject='alice')), patch.object(server.auth, 'load_credentials', return_value='alice-creds'), patch.object(preferences, 'get_style', return_value=preferences.result(SETTINGS, True)) as get, patch.object(styling, 'apply_style', return_value={'status': 'applied'}) as apply:
             asyncio.run(server.set_presentation_style('deck1', 'rev1', use_default_style=True))
             get.assert_called_once_with('alice')
-            apply.assert_called_once_with('alice-creds', 'deck1', 'rev1', preferences.StyleChanges(**SETTINGS.model_dump()))
+            apply.assert_called_once_with('alice-creds', 'deck1', 'rev1', preferences.StyleChanges(**SETTINGS.model_dump()), publish_gradient=ANY)
 
     def colored_deck(self):
         deck = copy.deepcopy(DECK)
@@ -142,11 +142,11 @@ class StylingTests(unittest.TestCase):
 
     def test_deck_changes_do_not_read_or_write_defaults_and_reject_ambiguous_mode(self):
         changes = preferences.StyleChanges(title_color='#244B63')
-        with patch.object(server, 'connected_credentials', return_value='creds'), patch.object(preferences, 'get_style') as get, patch.object(preferences, 'set_style') as save, patch.object(styling, 'apply_style', return_value={'status': 'applied'}) as apply:
+        with patch.object(server, 'connection_subject', return_value='alice'), patch.object(server, 'connected_credentials', return_value='creds'), patch.object(preferences, 'get_style') as get, patch.object(preferences, 'set_style') as save, patch.object(styling, 'apply_style', return_value={'status': 'applied'}) as apply:
             asyncio.run(server.set_presentation_style('deck1', 'rev1', changes))
             get.assert_not_called()
             save.assert_not_called()
-            apply.assert_called_once_with('creds', 'deck1', 'rev1', changes)
+            apply.assert_called_once_with('creds', 'deck1', 'rev1', changes, publish_gradient=ANY)
             for values in ({}, {'changes': changes, 'use_default_style': True}):
                 with self.assertRaises(ToolError):
                     asyncio.run(server.set_presentation_style('deck1', 'rev1', **values))

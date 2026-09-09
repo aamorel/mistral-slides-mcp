@@ -2,7 +2,7 @@
 
 Generate from a topic or your notes, style a presentation, save defaults for future
 decks, add slides, and revise wording through chat. Every new presentation uses your default style
-automatically. Before customization, it uses white backgrounds, blue titles,
+automatically. Before customization, it uses white backgrounds with a faint blue corner gradient, blue titles,
 charcoal body text, and Arial.
 
 1. In Vibe, open **Connectors → Add Connector → Custom MCP Connector**.
@@ -22,6 +22,16 @@ and numbered steps to suit your material. You can ask for a specific structure:
 “Compare feature phones and smartphones, then explain how a call connects.”
 You can revise wording in each layout; adding/removing bullets or steps and
 converting an existing slide to another layout are not supported yet.
+
+New slides use a simple visual treatment: short title underlines, light grey
+dividers between comparison columns, and a subtle side rule for key messages.
+These details are built in; style settings control the colors and font. Existing
+slides keep their layout when you change their style.
+
+Content slides also have a subtle gradient by default. Ask “Make the gradient
+lavender” to change its tint, or “Remove the gradient” for a plain background.
+To keep future decks plain, ask “Turn off gradients by default.” The cover keeps
+its generated image. Gradient direction and intensity stay fixed and gentle.
 
 The presentation should appear in **your Google Drive**. Open the returned link—or open it directly in Drive if the link doesn’t work.
 

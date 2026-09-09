@@ -76,7 +76,9 @@ def slide_palette(page):
     if len(fonts) != 1 or any(len(values) != 1 for values in colors.values()):
         raise ValueError('Inconsistent or missing colors/font')
     return preferences.StyleSettings(background=background, title_color=next(iter(colors['title'])),
-        body_color=next(iter(colors['body'])), font_family=next(iter(fonts))).palette()
+        body_color=next(iter(colors['body'])), font_family=next(iter(fonts)),
+        gradient=bool(inspected['gradient']),
+        gradient_color=(inspected['gradient'] or {}).get('gradient_color', '#93B4E8')).palette()
 
 
 def choose_palette(pages, insertion_index, fallback):
@@ -103,7 +105,7 @@ def object_ids(value):
 
 
 def add_deck_slide(creds, presentation_id, expected_revision_id, instructions,
-                   source_content, after_slide_id, fallback_palette):
+                   source_content, after_slide_id, fallback_palette, *, publish_gradient=None):
     service, raw, deck = editing.read_deck(creds, presentation_id)
     if not deck['revision_id'] or deck['revision_id'] != expected_revision_id:
         raise editing.EditError('The deck changed or its revision is unavailable. Read it again before adding a slide.')
@@ -135,7 +137,10 @@ def add_deck_slide(creds, presentation_id, expected_revision_id, instructions,
     if len(str(suffix)) > 30:
         raise editing.EditError('No slide added. Existing object IDs exceed supported limits.')
     slide_id = f'mvp_slide_{suffix}'
-    requests = slides.content_slide_requests(slide, suffix, palette, insertion_index=position)
+    gradient_url = (publish_gradient('#' + palette['background'], '#' + palette['gradient_color'])
+                    if palette.get('gradient', False) else None)
+    requests = slides.content_slide_requests(slide, suffix, palette, insertion_index=position,
+                                            gradient_url=gradient_url)
     try:
         response = service.presentations().batchUpdate(presentationId=presentation_id, body={
             'requests': requests, 'writeControl': {'requiredRevisionId': expected_revision_id}}).execute(num_retries=0)

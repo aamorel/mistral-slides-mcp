@@ -84,13 +84,13 @@ class MVPTests(unittest.TestCase):
         service.presentations.return_value.create.return_value.execute.return_value = {'presentationId': 'deck123'}
         service.presentations.return_value.get.return_value.execute.return_value = {}
         with patch.object(slides, 'build', return_value=service):
-            result = slides.create_deck(MagicMock(), OUTLINE, palette=preferences.DEFAULT_STYLE.palette(), cover_image_url="https://example.com/cover.png")
+            result = slides.create_deck(MagicMock(), OUTLINE, palette=preferences.DEFAULT_STYLE.model_copy(update={'gradient': False}).palette(), cover_image_url="https://example.com/cover.png")
             self.assertEqual(result, {'presentation_id': 'deck123', 'presentation_url': 'https://docs.google.com/presentation/d/deck123/edit', 'title': 'Demo', 'content_slide_count': 1, 'total_slide_count': 2, 'cover_image': 'generated'})
             requests = service.presentations.return_value.batchUpdate.call_args.kwargs['body']['requests']
             self.assertEqual(sum('createSlide' in r for r in requests), 2)
             service.presentations.return_value.batchUpdate.return_value.execute.side_effect = Exception('private upstream detail')
             with self.assertRaisesRegex(RuntimeError, 'deck123/edit') as caught:
-                slides.create_deck(MagicMock(), OUTLINE, palette=preferences.DEFAULT_STYLE.palette(), cover_image_url="https://example.com/cover.png")
+                slides.create_deck(MagicMock(), OUTLINE, palette=preferences.DEFAULT_STYLE.model_copy(update={'gradient': False}).palette(), cover_image_url="https://example.com/cover.png")
             self.assertNotIn('private upstream detail', str(caught.exception))
 
     def test_generated_deck_has_exact_count_with_or_without_starter_slides(self):
@@ -102,7 +102,7 @@ class MVPTests(unittest.TestCase):
                     'slides': [{'objectId': slide_id} for slide_id in initial_ids]}
                 content = {'title': 'Six slides', 'slides': OUTLINE['slides'] * 6}
                 with patch.object(slides, 'build', return_value=service):
-                    slides.create_deck(MagicMock(), content, palette=preferences.DEFAULT_STYLE.palette(), cover_image_url="https://example.com/cover.png")
+                    slides.create_deck(MagicMock(), content, palette=preferences.DEFAULT_STYLE.model_copy(update={'gradient': False}).palette(), cover_image_url="https://example.com/cover.png")
                 requests = service.presentations.return_value.batchUpdate.call_args.kwargs['body']['requests']
                 final_ids = list(initial_ids)
                 deleted = []

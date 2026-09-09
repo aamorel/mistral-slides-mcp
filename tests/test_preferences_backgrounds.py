@@ -17,7 +17,7 @@ from starlette.testclient import TestClient
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp_slides.mvp import auth, backgrounds, preferences, server, slides
 
-SETTINGS = dict(background='#FAF5EB', title_color='#244B63', body_color='#263238', font_family='Georgia')
+SETTINGS = dict(background='#FAF5EB', title_color='#244B63', body_color='#263238', font_family='Georgia', gradient=False, gradient_color='#93B4E8')
 buffer = BytesIO()
 Image.new('RGB', (1600, 900), '#FAF5EB').save(buffer, format='PNG')
 PNG = buffer.getvalue()

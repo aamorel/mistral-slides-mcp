@@ -10,8 +10,9 @@ from googleapiclient.errors import HttpError
 from mistralai.client import Mistral
 
 from .outline import DEFAULT_MODEL
-from .layouts import text_role, edit_limit, text_budget
+from .layouts import text_role, edit_limit, text_budget, is_decoration
 from .styling import style_capability
+from . import gradients
 
 LIMITATIONS = [
     "Text and style metadata only; no visual preview, layout assessment, notes, or master/layout content.",
@@ -76,6 +77,12 @@ def paragraphs(element: dict) -> list[dict]:
 def normalize_element(element: dict, grouped: bool = False) -> dict:
     kind = next((key for key in ("shape", "image", "table", "elementGroup", "sheetsChart", "video", "line", "wordArt") if key in element), "unknown")
     item = {"element_id": element["objectId"], "type": kind, "editable": False}
+    if not grouped and gradients.inspect(element, element['objectId'].rsplit('_', 1)[-1]):
+        return {**item, 'type': 'decoration',
+                'unsupported_reason': 'Gradient background; use set_presentation_style to recolor or remove it.'}
+    if not grouped and is_decoration(element, element['objectId'].rsplit('_', 1)[-1]):
+        return {**item, 'type': 'decoration',
+                'unsupported_reason': 'Built-in decorative rule; preserved during text and style updates.'}
     if element.get("title"):
         item["alt_title"] = element["title"]
     if element.get("description"):

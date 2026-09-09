@@ -3,8 +3,9 @@ from typing import Any
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 
-from .layouts import content_boxes, color_role
+from .layouts import content_boxes, color_role, decoration_boxes, DECORATION_COLOR
 from .outline import validate_outline
+from . import gradients
 
 def rgb(hex_color: str) -> dict[str, float]:
     return dict(zip(("red", "green", "blue"),
@@ -51,7 +52,25 @@ def insert_text_request(object_id: str, text: str) -> dict[str, Any]:
     }
 
 
-def content_slide_requests(slide: dict, index: int, palette: dict, *, insertion_index: int | None = None) -> list[dict]:
+def decoration_requests(kind: str, index: int) -> list[dict]:
+    requests = []
+    for role, geometry in decoration_boxes(kind):
+        object_id = f'mvp_{role}_{index}'
+        create = create_text_box_request(object_id, f'mvp_slide_{index}', *geometry)
+        create['createShape']['shapeType'] = 'RECTANGLE'
+        requests.extend([create, {'updateShapeProperties': {
+            'objectId': object_id,
+            'shapeProperties': {
+                'shapeBackgroundFill': {'solidFill': {
+                    'color': {'rgbColor': rgb(DECORATION_COLOR)}, 'alpha': 1}},
+                'outline': {'propertyState': 'NOT_RENDERED'},
+            },
+            'fields': 'shapeBackgroundFill,outline',
+        }}])
+    return requests
+
+
+def content_slide_requests(slide: dict, index: int, palette: dict, *, insertion_index: int | None = None, gradient_url: str | None = None) -> list[dict]:
     """Build only a new content slide; never mutate existing objects."""
     slide = validate_outline({"title": "Content", "slides": [slide]}, 1)["slides"][0]
     slide_id = f"mvp_slide_{index}"
@@ -63,6 +82,12 @@ def content_slide_requests(slide: dict, index: int, palette: dict, *, insertion_
                 "color": {"rgbColor": rgb(palette["background"])}, "alpha": 1}}},
             "fields": "pageBackgroundFill"}},
     ])
+    requests.extend(decoration_requests(slide['type'], index))
+    if palette.get('gradient', False):
+        if not gradient_url:
+            raise ValueError('A prepared gradient image is required.')
+        requests.extend(gradients.requests(index, '#' + palette['background'],
+                                          '#' + palette['gradient_color'], gradient_url))
     for role, text, geometry, size, bullet_style in content_boxes(slide):
         object_id = f"mvp_{role}_{index}"
         color = color_role(object_id)
@@ -88,8 +113,10 @@ def content_slide_requests(slide: dict, index: int, palette: dict, *, insertion_
 
 
 def create_deck(creds: Credentials, outline: dict[str, Any], *,
-                palette: dict, cover_image_url: str) -> dict[str, Any]:
+                palette: dict, cover_image_url: str, publish_gradient=None) -> dict[str, Any]:
     outline = validate_outline(outline, len(outline["slides"]))
+    gradient_url = (publish_gradient('#' + palette['background'], '#' + palette['gradient_color'])
+                    if palette.get('gradient', False) else None)
     service = build("slides", "v1", credentials=creds, cache_discovery=False)
     title = outline["title"]
     presentation = service.presentations().create(body={"title": title}).execute()
@@ -113,8 +140,9 @@ def create_deck(creds: Credentials, outline: dict[str, Any], *,
                 "bold": True, "foregroundColor": {"opaqueColor": {"rgbColor": rgb(palette["title"])}}},
             "fields": "fontFamily,fontSize,bold,foregroundColor"}},
     ]
+    requests.extend(decoration_requests('cover', 0))
     for index, slide in enumerate(outline["slides"], start=1):
-        requests.extend(content_slide_requests(slide, index, palette))
+        requests.extend(content_slide_requests(slide, index, palette, gradient_url=gradient_url))
 
     if requests:
         try:

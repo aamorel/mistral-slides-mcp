@@ -58,7 +58,9 @@ renderer validates again before creating a Google file.
   The style sheet is a readable Markdown representation of validated settings,
   not a physical editable `.md` file or executable Markdown instructions.
 - Settings are background, title and body colors (`#RRGGBB`), plus Arial, Verdana,
-  Georgia, or Trebuchet MS. Text colors require at least 4.5:1 background contrast.
+  Georgia, or Trebuchet MS, plus `gradient` (default true) and `gradient_color`
+  (default `#93B4E8`). The corner tint has a fixed gentle intensity. Text colors
+  require at least 4.5:1 contrast across every rendered gradient stop.
 - Before customization, defaults are white (`#FFFFFF`), blue titles (`#244B63`),
   charcoal body text (`#263238`), and Arial. There are no named style presets.
 - `set_presentation_style(changes=...)` changes only the supplied colors/font on

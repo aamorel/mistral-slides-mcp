@@ -2,7 +2,7 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
-from mcp_slides.mvp import outline, slides, layouts, editing, styling, preferences
+from mcp_slides.mvp import outline, slides, layouts, editing, styling, preferences, insertion
 from test_editing import box
 
 TYPES = [
@@ -35,7 +35,7 @@ class SlideTypeTests(unittest.TestCase):
             with self.subTest(slide=slide), self.assertRaises(ValueError):
                 outline.validate_outline({'title': 'Demo', 'slides': [slide]}, 1)
         with patch.object(slides, 'build') as build, self.assertRaises(ValueError):
-            slides.create_deck(None, {'title': 'Demo', 'slides': [invalid[0]]}, palette=preferences.DEFAULT_STYLE.palette(), cover_image_url='https://example.com/cover.png')
+            slides.create_deck(None, {'title': 'Demo', 'slides': [invalid[0]]}, palette=preferences.DEFAULT_STYLE.model_copy(update={'gradient': False}).palette(), cover_image_url='https://example.com/cover.png')
         build.assert_not_called()
 
     def test_rendered_types_keep_editable_roles_and_style_support(self):
@@ -43,7 +43,7 @@ class SlideTypeTests(unittest.TestCase):
         fake.presentations.return_value.create.return_value.execute.return_value = {'presentationId': 'deck1'}
         fake.presentations.return_value.get.return_value.execute.return_value = {}
         with patch.object(slides, 'build', return_value=fake):
-            slides.create_deck(None, {'title': 'Phones', 'slides': TYPES}, palette=preferences.DEFAULT_STYLE.palette(), cover_image_url='https://example.com/cover.png')
+            slides.create_deck(None, {'title': 'Phones', 'slides': TYPES}, palette=preferences.DEFAULT_STYLE.model_copy(update={'gradient': False}).palette(), cover_image_url='https://example.com/cover.png')
         requests = fake.presentations.return_value.batchUpdate.call_args.kwargs['body']['requests']
         lists = {r['createParagraphBullets']['objectId']: r['createParagraphBullets']['bulletPreset'] for r in requests if 'createParagraphBullets' in r}
         self.assertNotIn('mvp_message_1', lists)
@@ -69,6 +69,38 @@ class SlideTypeTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'budget'):
             editing.validate_edit({'status': 'ok', 'replacements': [
                 {'element_id': 'mvp_body_left_1', 'paragraphs': ['x' * 70] * 3}]}, target)
+
+    def test_decorated_slides_remain_styleable_and_supply_insertion_palette(self):
+        palette = preferences.DEFAULT_STYLE.model_copy(update={'gradient': False}).palette()
+        for index, slide in enumerate(TYPES, 1):
+            requests = slides.content_slide_requests(slide, index, palette, insertion_index=2)
+            self.assertEqual(requests[0]['createSlide']['insertionIndex'], 2)
+            elements = {}
+            page = {'objectId': f'mvp_slide_{index}', 'pageElements': []}
+            for request in requests:
+                if 'createShape' in request:
+                    shape = request['createShape']
+                    elements[shape['objectId']] = {'objectId': shape['objectId'],
+                        'shape': {'shapeType': shape['shapeType']}}
+                elif 'insertText' in request:
+                    insert = request['insertText']
+                    elements[insert['objectId']] = box(insert['objectId'], insert['text'].split('\n'))
+                elif 'updateTextStyle' in request:
+                    update = request['updateTextStyle']
+                    for entry in elements[update['objectId']]['shape']['text']['textElements']:
+                        if 'textRun' in entry:
+                            entry['textRun']['style'] = update['style']
+                elif 'updatePageProperties' in request:
+                    page['pageProperties'] = request['updatePageProperties']['pageProperties']
+            page['pageElements'] = list(elements.values())
+            self.assertTrue(styling.inspect_slide(page)['supported'])
+            self.assertEqual(insertion.slide_palette(page), palette)
+            rule = elements[f'mvp_title_rule_{index}']
+            self.assertEqual(editing.normalize_element(rule)['type'], 'decoration')
+            self.assertFalse(editing.normalize_element(rule)['editable'])
+            # Manual content in a decorative shape must still block whole-slide styling.
+            rule['shape']['text'] = {'textElements': [{'textRun': {'content': 'Keep this'}}]}
+            self.assertFalse(styling.inspect_slide(page)['supported'])
 
     def test_comparison_edit_changes_only_selected_column(self):
         page = {'objectId': 'mvp_slide_1', 'pageElements': [

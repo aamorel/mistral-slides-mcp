@@ -171,7 +171,7 @@ alone may not refresh tool descriptions. Client wording is still model-generated
 
 Every new deck uses the connection's default colors and font automatically.
 Generation has no `style` argument or named presets. Use `set_presentation_style` afterwards for deck-specific changes. Without saved
-preferences, the default is a white background, blue titles (`#244B63`), charcoal
+preferences, the default is a white background with a faint blue corner gradient, blue titles (`#244B63`), charcoal
 body text (`#263238`), and Arial. `set_default_style` changes the defaults for
 future decks; `reset_default_style` restores these built-in settings. Partial
 changes are merged and validated by the server in one database transaction; no preliminary read is needed.
@@ -466,15 +466,29 @@ connection subject, never a user-supplied identity.
     "background": "#FAF5EB",
     "title_color": "#244B63",
     "body_color": "#263238",
-    "font_family": "Georgia"
+    "font_family": "Georgia",
+    "gradient": true,
+    "gradient_color": "#93B4E8"
   }
 }
 ```
 
 Supply at least one field; omitted fields are preserved. Empty updates and explicit nulls are rejected. Fonts are limited to Arial, Verdana,
 Georgia, and Trebuchet MS. Colors must be six-digit hex values; title and body
-text each need at least 4.5:1 contrast against the background. Unsupported fields
+text each need at least 4.5:1 contrast across the entire background gradient. Unsupported fields
 and unreadable combinations are rejected. The server merges partial requests with the saved settings and validates the complete result before saving.
+
+Content slides use a deterministic PNG corner gradient at a fixed 12% maximum
+tint, generated locally without a model call. `gradient` defaults to `true` and
+`gradient_color` to `#93B4E8`, including for saved settings from older versions.
+Set `gradient=false` to remove it from a deck or disable it for future decks.
+On an existing deck, `gradient_color` alone enables the new tint; when saving
+defaults, also set `gradient=true` if gradients were previously disabled.
+The cover keeps its generated image and solid title band. Gradient assets use
+the existing temporary image hosting and are cleaned up after Google's write.
+Their original source URL retains rendering settings for reading and insertion;
+unrecognized or replaced background images conservatively block slide styling.
+Inserted slides inherit the nearest supported slide's gradient or plain background.
 
 Only an explicit request such as “Save these colors as my default for future
 presentations” should save preferences. One-deck requests never change defaults.

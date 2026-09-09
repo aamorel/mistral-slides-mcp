@@ -2,6 +2,33 @@
 import re
 
 
+DECORATION_COLOR = 'D1D5DB'
+
+
+def is_decoration(element, suffix):
+    """Recognize only our empty, ungrouped decorative rectangles."""
+    if suffix is None or element.get('objectId') not in {
+        f'mvp_title_rule_{suffix}', f'mvp_column_rule_{suffix}', f'mvp_message_rule_{suffix}',
+    }:
+        return False
+    shape = element.get('shape', {})
+    return shape.get('shapeType') == 'RECTANGLE' and all(
+        'autoText' not in entry and not entry.get('textRun', {}).get('content', '').strip()
+        for entry in shape.get('text', {}).get('textElements', []))
+
+
+def decoration_boxes(kind):
+    """Fixed visual accents, independent of the user-configurable palette."""
+    if kind == 'cover':
+        return [('title_rule', (40, 384, 48, 3))]
+    boxes = [('title_rule', (40, 114, 48, 3))]
+    if kind == 'comparison':
+        boxes.append(('column_rule', (359, 132, 2, 237)))
+    elif kind == 'key_message':
+        boxes.append(('message_rule', (40, 148, 3, 202)))
+    return boxes
+
+
 def text_role(element_id):
     match = re.fullmatch(r'mvp_(title|body|message|heading_left|heading_right|body_left|body_right|steps)_(\d+)', element_id)
     return match[1] if match else None
@@ -27,7 +54,7 @@ def text_budget(element_id):
 
 def content_boxes(slide):
     """Return role, text, geometry, font size and optional list style."""
-    boxes = [('title', slide['title'], (40, 28, 640, 88), 26, None)]
+    boxes = [('title', slide['title'], (40, 28, 640, 80), 26, None)]
     kind = slide['type']
     if kind == 'comparison':
         for side, x in (('left', 40), ('right', 380)):
