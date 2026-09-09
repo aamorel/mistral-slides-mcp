@@ -13,8 +13,6 @@ MCP URL: https://mistral-slides-mcp-production.up.railway.app/mcp
 - [Authentication reference](AUTH.md): frozen flow, access policy, tokens and operation.
 - [Current MVP scope](src/mcp_slides/mvp/SCOPE.md): supported tools and limits.
 - [Submission checklist](submission-plan.md): remaining acceptance and handoff work.
-- [OAuth publishing plan](oauth-publishing-plan.md): client-only access and rollout.
-- [Google Console rollout steps](google-oauth-rollout.md): deployment settings and UI checklist.
 - [Original assignment](scope.md): preserved as supplied.
 - [Historical investigation](investigation-questions.md): superseded experiments.
 
@@ -43,7 +41,7 @@ manual linking, copied bearer token, email address, or user ID.
 
 Reuse the existing Railway service, `/data` volume, and Google web OAuth client.
 The start command remains `uv run mcp-slides`. Add the pilot access and usage
-settings from `.env.example`; follow [the rollout checklist](google-oauth-rollout.md). `CONNECTOR_BEARER_TOKEN` is no longer
+settings from `.env.example`; follow [deployment configuration](AUTH.md#deployment-configuration). `CONNECTOR_BEARER_TOKEN` is no longer
 used by the MVP and may be removed from Railway.
 
 **The old static-header connector must reconnect using OAuth.** Remove its static
@@ -90,7 +88,19 @@ and styling remain available to admitted users. Calls already started may finish
 
 The counter survives restarts. To grant more usage, raise the lifetime ceiling;
 do not delete the token database. Review available Mistral credits/model costs
-before increasing it. See [operation and rollout](google-oauth-rollout.md).
+before increasing it. See [auth operation](AUTH.md#operation-and-diagnosis).
+
+Inspect consumed calls from the service environment without printing credentials:
+
+```sh
+uv run python - <<'PYTHON'
+from contextlib import closing
+from mcp_slides.mvp.auth import connect
+
+with closing(connect()) as db:
+    print(db.execute("SELECT calls FROM pilot_usage WHERE id=1").fetchone()[0])
+PYTHON
+```
 
 ## Authentication design
 
@@ -99,7 +109,7 @@ server keeps separate Google credentials for each authorized connection and
 checks the configured company domain or personal exceptions.
 
 See [AUTH.md](AUTH.md) for the complete flow, security controls, token lifecycle,
-storage tradeoffs, and troubleshooting. Use [the rollout checklist](google-oauth-rollout.md)
+storage tradeoffs, and troubleshooting. Use [deployment configuration](AUTH.md#deployment-configuration)
 for Google Console and Railway configuration.
 
 ## Tool contract

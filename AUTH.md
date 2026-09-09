@@ -4,7 +4,8 @@
 This is the reference for the implemented flow at `d53361d`. Keep this behavior
 stable; limit further auth work to bug fixes, configuration, and release checks.
 Google publishing and Railway settings are operational state, not implied by this
-freeze. See the [rollout checklist](google-oauth-rollout.md) for those steps.
+freeze. Configuration is described below; remaining release checks live in the
+[submission checklist](submission-plan.md#4-verify-google-oauth-and-onboarding).
 
 ## One connection, two OAuth relationships
 
@@ -110,12 +111,40 @@ legacy connections lacking verified identity. This does not delete Drive decks
 or revoke Google's upstream consent; users can separately remove that consent
 in their Google Account. Operational logs avoid credentials and content.
 
+## Deployment configuration
+
+Use the existing Railway service, persistent volume, and Google web OAuth client.
+Set the allowlists above and the remaining variables in [.env.example](.env.example)
+in Railway; pushing the template does not apply them. Keep
+`PUBLIC_BASE_URL=https://mistral-slides-mcp-production.up.railway.app`.
+
+In the Google project, enable the Google Slides API and configure:
+
+| Google Auth Platform setting | Value |
+| --- | --- |
+| Data Access | `https://www.googleapis.com/auth/drive.file`, `openid`, `https://www.googleapis.com/auth/userinfo.email` |
+| Clients → authorized redirect URI | `https://mistral-slides-mcp-production.up.railway.app/auth/google/callback` |
+| Branding → homepage | `https://mistral-slides-mcp-production.up.railway.app/` |
+| Branding → privacy policy | `https://mistral-slides-mcp-production.up.railway.app/privacy` |
+| Audience | External; In production for onboarding without individual Google tester entries. |
+
+If the origin changes, update all three URLs and the server base URL together.
+Google's Authorized domains field is for website ownership, not user admission.
+Review Branding/Verification Center requirements, including domain ownership and
+support details; publication and brand verification are separate. Deploy the
+server admission policy before removing Google's tester gate.
+
+Testing still requires individual Google test users and has seven-day grant
+expiry. Older grants may need reconnection after publication. Client Workspace
+restrictions may apply in either mode. See Google's [audience documentation](https://support.google.com/cloud/answer/15549945?hl=en)
+and [branding requirements](https://developers.google.com/identity/protocols/oauth2/production-readiness/brand-verification).
+
 ## Operation and diagnosis
 
 | Symptom | First check |
 | --- | --- |
 | “Client-only pilot” denial | Railway allowlists, exact selected Google account, then redeploy after correcting variables. |
-| Google blocks account before our callback | Google Audience/tester settings and client Workspace restrictions; see the rollout guide. |
+| Google blocks account before our callback | Google Audience/tester settings and client Workspace restrictions; see Deployment configuration above. |
 | Expired connection link | Start a fresh connection from Vibe; do not reuse an old callback URL. |
 | Existing connection stops working | Reconnect after token expiry, revocation, or the identity-policy upgrade. |
 

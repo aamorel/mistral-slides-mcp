@@ -149,7 +149,7 @@ configuration, release checks, and bug fixes, not auth feature expansion.
   cover image handling, skipped slides, and conversational feature discovery.
 - Last recorded Google OAuth state is testing: accounts must be approved testers.
   This documentation review did not inspect the Console or deployment. Publishing
-  is a submission task in [oauth-publishing-plan.md](../../../oauth-publishing-plan.md).
+  is tracked in the [submission checklist](../../../submission-plan.md#4-verify-google-oauth-and-onboarding).
   Client-only admission and global usage controls are implemented locally, with
   deployed acceptance pending. Configure verified `mistral.ai` Workspace access
   and personal exceptions; remove the friend exception before submission.

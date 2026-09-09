@@ -68,27 +68,32 @@ exception remain release tasks.
 - [ ] Review and document credential storage and disconnection behavior. Keep
   broader public-launch hardening separate from the limited submission scope.
 
-## 4. Publish Google OAuth and verify onboarding
+## 4. Verify Google OAuth and onboarding
 
-Follow [the OAuth publishing plan](oauth-publishing-plan.md) for detailed steps.
+The implementation is frozen in [AUTH.md](AUTH.md); use its
+[deployment configuration](AUTH.md#deployment-configuration) for Google and Railway.
+Keep the following live checks open until their outcomes are recorded.
 
-- [ ] Implement and deploy the client-domain gate, owner exception, temporary
-  friend exception, and global usage controls before publishing.
-- [ ] Confirm Google scopes match the planned code: `openid`, `email`, and
-  `drive.file`; validate Google identity claims on the server.
+- [x] Implement the client-domain gate, owner and temporary friend exceptions,
+  and global usage controls.
+- [ ] Confirm the deployed version and Railway allowlists/usage settings match
+  the frozen implementation before handoff.
+- [ ] Confirm Google Data Access matches the implemented scopes in `AUTH.md`.
 - [ ] Review Audience, Branding, and Verification Center requirements, then
   publish the external OAuth app when ready.
-- [ ] Connect through Vibe with an allowed client account that was never a test
-  user; confirm unrelated accounts are denied.
+- [ ] Verify the owner and temporary friend can connect during evaluation.
+- [ ] Connect through Vibe with a client account that was never a test user;
+  confirm its verified domain is admitted and unrelated accounts are denied.
 - [ ] Verify that the created deck belongs to that account and its returned link opens.
 - [ ] Verify reconnecting and credential refresh; reconnect older testing grants
   where necessary.
 - [ ] Update user-facing tester instructions only after the new onboarding flow
   is confirmed. Describe any remaining prompts accurately.
 
-- [ ] Remove the friend's exception and revoke existing access before submission;
-  verify owner and client retain access. Owner email confirmed as
-  `aurelien.morel.arthur@gmail.com`.
+- [ ] Before submission, set Railway `GOOGLE_ALLOWED_EMAILS` to
+  `aurelien.morel.arthur@gmail.com` and restart to purge the friend's connections.
+  Verify both old tokens and new login are denied for the friend, while owner
+  and client retain access. Removing a Google tester entry alone is insufficient.
 
 Publishing with server-enforced client-only access is the preferred handoff. If
 blocked, arrange reviewer test accounts and document the limitation; do not
