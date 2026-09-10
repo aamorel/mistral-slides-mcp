@@ -52,8 +52,7 @@ is not recolored. Custom templates are not supported.
 After creating a deck, try: “Make slide two less technical.” The connector can
 revise supported text at the same link; it cannot rearrange slides or alter image contents.
 
-After the image-enabled version is deployed and connector definitions refreshed,
-attach a PNG, JPEG or WebP and ask: “Add this image to slide 2.” Positions count
+Attach a PNG, JPEG or WebP and ask: “Add this image to slide 2.” Positions count
 the cover. On supported key-message/bullet slides, text stays left and the full
 image fits on the right, without cropping or stretching. Wording, fonts, colors
 and neighboring slides stay unchanged. To replace it, attach another image and
@@ -76,7 +75,11 @@ existing slides and the link are preserved. It matches readable existing colors
 and font, falling back to your current saved default with an explicit notice if
 needed. Removing/reordering slides and arbitrary layout conversion remain unsupported.
 
-**Access:** this is a client-only pilot for approved company Google accounts and invited personal testers. The last recorded deployment uses Google Testing: until the production rollout is confirmed, send me the Google email you’ll use so I can add you as a tester. Google may show an “app not verified” warning because this is a test app; continue only if you recognize this invitation and are comfortable granting access.
+**Access:** this pilot is limited to approved company Google accounts and invited
+personal accounts. If access is denied, contact the operator with the Google email
+you want to use. If the Google OAuth app is in Testing, the operator must also add
+you as a Google test user. If Google shows an “app not verified” warning, continue
+only if you recognize the service and are comfortable granting access.
 
 Please tell me whether connecting, creating the deck, and opening it worked. If something fails, send me the error message—never passwords or tokens.
 
@@ -92,6 +95,6 @@ You can paste a Google Slides link when referring to a deck. Access is limited t
 files available to this connector and your connected account. For implementation
 limits, see the [current MVP scope](capabilities.md).
 
-After the identity-policy upgrade, reconnect once with your approved account. If
-generation is paused, busy, or the pilot allowance is exhausted, follow the tool
+If prompted to reconnect, use your approved Google account. If generation is
+paused, busy, or the pilot allowance is exhausted, follow the tool
 message; contact the operator for access or allowance changes.

@@ -108,7 +108,7 @@ renderer validates again before creating a Google file.
   preserving existing objects, manual edits and the same URL. All four content
   types are supported. Original 720 × 405 point page size is required; serialized
   deck text context is capped at 60,000 characters. Later additions are not capped
-  by the six-content-slide generation limit.
+  by the six-total-slide generation limit (including the cover).
 - Added slides match the nearest readable supported content slide's colors/font;
   otherwise use the saved default and return a warning the assistant must report.
   Added objects retain the naming convention required by text editing and styling.
@@ -147,7 +147,6 @@ retrying. Occupied slots require an explicit replacement request and `replace=tr
 
 Fresh attachment forwarding was verified in the
 [isolated probe](../scripts/investigation/image_attachment_probe/RESULTS.md).
-Google insertion for this new flow still requires deployed acceptance.
 
 ### Requests and defaults
 
@@ -180,14 +179,14 @@ configuration, release checks, and bug fixes, not auth feature expansion.
   This is local mocked-provider evidence, not deployed acceptance.
 - A live Mistral text-generation check successfully produced all four types.
   Earlier live Google authorization and generation were tested by the user.
-- Live acceptance of the latest layouts and mutations remains pending: visual fit
+- Live acceptance of the latest layouts and mutations was confirmed by the user
+  on 2026-09-10: visual fit
   at text limits and across fonts, source fidelity, links, numbering preservation,
   cover image handling, skipped slides, and conversational feature discovery.
-- Last recorded Google OAuth state is testing: accounts must be approved testers.
-  This documentation review did not inspect the Console or deployment. Publishing
-  is tracked in the [submission checklist](submission-checklist.md#4-verify-google-oauth-and-onboarding).
+- If the Google OAuth app is in Testing, accounts must also be approved Google
+  test users. Publishing and deployment configuration are tracked in the [submission checklist](submission-checklist.md#4-verify-google-oauth-and-onboarding).
   Client-only admission and global usage controls are implemented locally, with
-  deployed acceptance pending. Configure verified `mistral.ai` Workspace access
+  deployed admission acceptance confirmed by the user on 2026-09-10. Configure verified `mistral.ai` Workspace access
   and personal exceptions; remove the friend exception before submission.
   Defaults: 100 lifetime paid provider calls, two concurrent calls, and an operator
   pause switch. These are operation limits, not a currency spending cap.

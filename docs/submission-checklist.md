@@ -13,12 +13,15 @@ After acceptance testing these flows, freeze new features and focus on correctne
 visual fit, deployment, OAuth publishing, repository cleanup, and code ownership.
 Adding/removing items and converting existing layouts remain deferred.
 
-Documentation synchronized on 2026-09-09. Local automated validation: 100 tests
-passed. Unchecked live, publishing and ownership tasks below remain pending.
+Documentation synchronized on 2026-09-10. Local automated validation recorded on
+2026-09-09: 100 tests passed. The user confirmed completion of all live acceptance
+tests on 2026-09-10. Checked live tests below reflect that confirmation; the exact
+tested deployment commit was not supplied. Unchecked release and ownership tasks
+remain pending.
 
 Auth and the connection UI are frozen for the pilot; [auth reference](auth.md) is the
-implementation reference. Configuration, acceptance, and removal of the friend
-exception remain release tasks.
+implementation reference. Configuration and removal of the friend exception
+remain release tasks unless separately confirmed.
 
 ## 1. Understand and own the code
 
@@ -45,7 +48,7 @@ exception remain release tasks.
 
 ## 2. Clean up the repository
 
-- [ ] Keep the main README focused on capabilities, trying the connector, local
+- [x] Keep the main README focused on capabilities, trying the connector, local
   setup, architecture, deployment, and known limitations.
 - [ ] Reconcile historical validation notes with what has actually been tested;
   distinguish user-confirmed results from checks still pending.
@@ -53,7 +56,7 @@ exception remain release tasks.
   actual supported editing boundaries.
 - [x] Update the package description in `pyproject.toml` and use `README.md` as
   the package README. Preserve `docs/assignment.md` as the original assignment.
-- [x] Include `editing.py` in the README's application module list.
+- [x] Include `editing.py` in the architecture module list linked from the README.
 - [x] Move supporting documentation into `docs/`, preserve history under
   `docs/history/`, and label retained experiments in `scripts/investigation/`.
 - [ ] Review tracked files and Git history for accidentally committed secrets
@@ -65,12 +68,13 @@ exception remain release tasks.
 - [ ] Install from a fresh checkout with `uv sync --locked` and run the documented tests.
 - [x] Add a small CI workflow that installs from the lockfile and runs the test suite.
   Workflow added locally; confirm its first hosted run after pushing.
-- [ ] Confirm the setup instructions cover required environment variables,
+- [x] Confirm the setup instructions cover required environment variables,
   Google API/redirect configuration, Railway start command, and persistent volume.
 - [x] Document the single-instance SQLite assumption and basic failure diagnosis.
-- [ ] Decide and document how Mistral spending is bounded during evaluation,
-  including how to disable access if needed. All users consume the operator's key.
-- [ ] Review and document credential storage and disconnection behavior. Keep
+- [x] Document shared Mistral call limits and the operator pause switch. These
+  bound paid attempts, not currency spending; all users consume the operator's key.
+- [ ] Confirm the deployed allowance is appropriate for evaluation.
+- [x] Review and document credential storage and disconnection behavior. Keep
   broader public-launch hardening separate from the limited submission scope.
 
 ## 4. Verify Google OAuth and onboarding
@@ -86,11 +90,11 @@ Keep the following live checks open until their outcomes are recorded.
 - [ ] Confirm Google Data Access matches the implemented scopes in `docs/auth.md`.
 - [ ] Review Audience, Branding, and Verification Center requirements, then
   publish the external OAuth app when ready.
-- [ ] Verify the owner can connect with the submission allowlist.
-- [ ] Connect through Vibe with a client account that was never a test user;
+- [x] Verify the owner can connect with the submission allowlist.
+- [x] Connect through Vibe with a client account that was never a test user;
   confirm its verified domain is admitted and unrelated accounts are denied.
-- [ ] Verify that the created deck belongs to that account and its returned link opens.
-- [ ] Verify reconnecting and credential refresh; reconnect older testing grants
+- [x] Verify that the created deck belongs to that account and its returned link opens.
+- [x] Verify reconnecting and credential refresh; reconnect older testing grants
   where necessary.
 - [ ] Update user-facing tester instructions only after the new onboarding flow
   is confirmed. Describe any remaining prompts accurately.
@@ -109,65 +113,66 @@ present onboarding as unrestricted.
 Refresh Vibe's connector tool definitions after deployment. Automated tests mock
 Google and Mistral; these checks exercise the real providers and conversation.
 
-- [ ] Add a fresh attachment to short message/bullet slides, then explicitly
+- [x] Add a fresh attachment to short message/bullet slides, then explicitly
   replace it. Verify full-image fit, transparency/orientation, preserved wording,
   fonts and deck URL. Revise wording/style afterward. Check crowded text,
   unsupported layouts, occupied slots and re-upload recovery. Local geometry
   previews and mocked tests do not replace this Google acceptance.
 
-- [ ] Verify standard generated bullet indentation accepts “What Are Frogs?” with
+- [x] Verify standard generated bullet indentation accepts “What Are Frogs?” with
   “Amphibians with smooth, moist skin”, “Live in water and on land”, and
   “Undergo metamorphosis from tadpoles to adults”. Confirm a genuine formatting rejection is not presented as
   a request to shorten text. Confirm fonts remain the same size.
-- [ ] Verify an inserted image remains visible after temporary URL expiry and
+- [x] Verify an inserted image remains visible after temporary URL expiry and
   inserting a neighboring slide does not copy its image.
 
-- [ ] Generate from a topic and open the exact returned link in the correct Drive.
-- [ ] Ask “Create a presentation about phones” with no other details. Confirm
+- [x] Generate from a topic and open the exact returned link in the correct Drive.
+- [x] Ask “Create a presentation about phones” with no other details. Confirm
   immediate generation of three total slides including one image cover using saved defaults without a create/edit menu or
   questions about optional inputs. Separately verify an explicit planning request
   stays in conversation until creation is requested.
-- [ ] Save a default style, generate a deck, and verify it
+- [x] Save a default style, generate a deck, and verify it
   is applied. Verify partial changes preserve other settings, reset works,
   and a second connection cannot read or change the first connection’s preference.
-- [ ] Verify the automatic image cover, editable title, extra-slide count, and
+- [x] Verify the automatic image cover, editable title, extra-slide count, and
   temporary image fetch from the deployed server.
-- [ ] Generate from supplied content and check that facts and uncertainty are preserved.
-- [ ] Confirm the post-generation chat invitation offers relevant wording edits.
-- [ ] Generate with built-in defaults and customized colors/font. Check visual fit,
+- [x] Generate from supplied content and check that facts and uncertainty are preserved.
+- [x] Confirm the post-generation chat invitation offers relevant wording edits.
+- [x] Generate with built-in defaults and customized colors/font. Check visual fit,
   contrast, bullets, and wording revisions in each. Confirm style discovery is brief and
   distinguishes styling this deck from saving defaults for future decks.
-- [ ] Generate all four content types in topic and content mode. Check short and
+- [x] Generate all four content types in topic and content mode. Check short and
   maximum-length content, 1 and 5 bullets, asymmetric comparisons, and numbered
   steps in each supported font. Inspect overflow, column spacing and readability.
-- [ ] Revise a comparison column and a numbered step; verify neighboring text,
+- [x] Revise a comparison column and a numbered step; verify neighboring text,
   paragraph counts and numbering remain intact. Apply defaults to all four types.
-- [ ] Confirm unsupported requests to add/remove items or convert layouts are
+- [x] Confirm unsupported requests to add/remove items or convert layouts are
   acknowledged without silently rewriting or creating a replacement deck.
-- [ ] Change only a deck's title color, then only its font. Verify unspecified
+- [x] Change only a deck's title color, then only its font. Verify unspecified
   formatting and saved defaults are preserved, including slides with different
   existing colors. Check low-contrast and unreadable-color skips.
-- [ ] Pass a Google Slides URL directly when reading or styling a deck.
-- [ ] Apply saved defaults to an existing deck. Verify the same URL, updated
+- [x] Pass a Google Slides URL directly when reading or styling a deck.
+- [x] Apply saved defaults to an existing deck. Verify the same URL, updated
   colors/font and cover band, unchanged text/layout/image, and skipped-slide
   reporting. Check revision conflicts and readback of actual formatting.
-- [ ] Insert after slide two and append a conclusion. Verify slide order, the
+- [x] Insert after slide two and append a conclusion. Verify slide order, the
   same URL, unchanged existing slides, inherited style and explicit fallback warnings.
   Revise the inserted slide; check that an uncertain insertion is read before retrying.
-- [ ] Chain supported mutations using returned revisions when context is sufficient;
+- [x] Chain supported mutations using returned revisions when context is sufficient;
   confirm stale revisions still reject writes and missing revisions require a read.
-- [ ] Revise one slide; verify the same deck URL and unchanged surrounding slides.
-- [ ] Check that fonts, bullets, positions, and unsupported elements survive the edit.
-- [ ] Manually edit text in Google Slides, then revise it through Vibe; verify the
+- [x] Revise one slide; verify the same deck URL and unchanged surrounding slides.
+- [x] Check that fonts, bullets, positions, and unsupported elements survive the edit.
+- [x] Manually edit text in Google Slides, then revise it through Vibe; verify the
   tool uses the current wording. Include an emoji to exercise Unicode handling.
-- [ ] Request an unsupported operation, such as adding a second image to one slide or reordering
+- [x] Request an unsupported operation, such as adding a second image to one slide or reordering
   slides; verify a clear explanation and no unintended changes.
-- [ ] Submit an edit with a stale revision; verify rejection and preservation of
+- [x] Submit an edit with a stale revision; verify rejection and preservation of
   the intervening manual change.
-- [ ] Try an inaccessible deck from another account; verify access is denied.
-- [ ] Redeploy/restart the service and verify the connection survives through the
+- [x] Try an inaccessible deck from another account; verify access is denied.
+- [x] Redeploy/restart the service and verify the connection survives through the
   persistent volume.
-- [ ] Record the tested commit, date, results, and any remaining limitations.
+- [ ] Record the exact tested deployment commit and any remaining limitations.
+  Live acceptance completion was confirmed by the user on 2026-09-10.
 
 ## 6. Prepare and send the submission
 
