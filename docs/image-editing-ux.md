@@ -1,11 +1,6 @@
 # Image editing UX
 
-Status: implemented; deployed Google/Vibe acceptance confirmed by the user on
-2026-09-10. See the [acceptance record](submission-checklist.md#5-run-the-final-deployed-acceptance-pass).
-Attachment feasibility evidence lives in
-[the isolated investigation](../scripts/investigation/image_attachment_probe/RESULTS.md).
-
-## Implemented first slice
+## Supported behavior
 
 Add one user-supplied image to an existing key-message or bullet slide, using
 a common text-left/image-right composition. Attachments are an edit-only feature. A deck may have images on multiple slides,
@@ -39,8 +34,7 @@ text shapes/IDs and retain wording, list counts, font and colors. Validate text
 against narrower layout budgets; do not silently shorten it, shrink it to fit,
 or assume existing full-width budgets remain safe. Limits are 90 message characters
 or up to 3 bullets of 55 characters each (150 total), with a conservative wrapping
-check. Local layout approximations were inspected across all four fonts; live
-Google rendering acceptance was confirmed by the user on 2026-09-10.
+check.
 
 Default to contain: preserve aspect ratio, show the full image, center it in the
 frame, and let unused space match the slide background. No stretching. This is

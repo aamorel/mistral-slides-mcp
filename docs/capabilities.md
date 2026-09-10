@@ -3,9 +3,8 @@
 The MVP lets a user connect the MCP in Vibe, authorize their own Google account,
 and create and revise presentations in their own Google Drive through conversation.
 This document describes the current implementation, extending the
-[original assignment](assignment.md). It is the feature-freeze candidate: the next work is acceptance testing,
-fixes, OAuth publishing, repository cleanup, and code ownership. The remaining
-submission work is tracked in [submission checklist](submission-checklist.md).
+[original assignment](assignment.md). Remaining release and handoff tasks are
+tracked in the [submission checklist](submission-checklist.md).
 
 ## Tools
 
