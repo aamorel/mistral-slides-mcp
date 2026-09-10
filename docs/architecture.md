@@ -10,10 +10,11 @@ layouts. Google Slides stores the presentations in each user's own Drive.
 flowchart LR
     Vibe["Vibe / MCP client"] -->|"OAuth + MCP tools"| Server["Python service"]
     Server -->|"Content and cover generation"| Mistral["Mistral API"]
-    Server -->|"Per-connection credentials"| Google["Google OAuth / Slides API"]
-    Google -->|"Fetch temporary images"| Server
+    Server -->|"Authorize and refresh credentials"| OAuth["Google OAuth"]
+    Server -->|"Read and write presentations"| Slides["Google Slides API"]
+    Slides -->|"Fetch temporary images"| Server
     Server --> DB[("SQLite on persistent volume")]
-    Server -->|"Retrieve user attachments"| Attachments["Allowed attachment host"]
+    Server -->|"Download uploaded image"| Attachments["Vibe image attachments"]
 ```
 
 [server.py](../src/mcp_slides/server.py) exposes nine tools for creating, reading,
