@@ -159,10 +159,8 @@ replayed, and deck creation has no cross-request duplicate prevention.
 - [User guide](docs/user-guide.md)
 - [Capabilities and limitations](docs/capabilities.md)
 - [Authentication, storage, and troubleshooting](docs/auth.md)
-- [Image placement behavior and limits](docs/image-editing-ux.md)
 - [Original assignment](docs/assignment.md)
 
-Application code lives in `src/mcp_slides/`, with tests in `tests/`. Release tasks
-are tracked in [the submission checklist](docs/submission-checklist.md).
+Application code lives in `src/mcp_slides/`, with tests in `tests/`.
 Development history and experiments live in `docs/history/` and
 `scripts/investigation/`; they are not required to run the connector.

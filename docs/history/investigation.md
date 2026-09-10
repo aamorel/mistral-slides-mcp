@@ -6,8 +6,8 @@ these setup commands and “next actions” are historical, not deployment guida
 The current server uses per-connection OAuth. Its maintained tool list and
 feature boundaries are documented in the current MVP scope linked below.
 
-Use [README.md](../../README.md) for setup, the [current MVP scope](../capabilities.md)
-for capabilities, and [submission checklist](../submission-checklist.md) for remaining work.
+Use [README.md](../../README.md) for setup and the
+[current MVP scope](../capabilities.md) for capabilities.
 Reported experimental successes do not establish acceptance of the current release.
 
 ## Target MVP

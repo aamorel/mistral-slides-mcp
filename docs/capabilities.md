@@ -3,8 +3,7 @@
 The MVP lets a user connect the MCP in Vibe, authorize their own Google account,
 and create and revise presentations in their own Google Drive through conversation.
 This document describes the current implementation, extending the
-[original assignment](assignment.md). Remaining release and handoff tasks are
-tracked in the [submission checklist](submission-checklist.md).
+[original assignment](assignment.md).
 
 ## Tools
 
@@ -119,6 +118,11 @@ renderer validates again before creating a Google file.
 
 ### Images on existing slides
 
+Attach an image and ask “Add this to slide 2.” Slide numbers count the cover as
+slide 1. Each request handles one image and one target slide; several slides can
+have images. Ask for clarification only when the deck, slide, or attachment is
+ambiguous. The full image stays visible without cropping or stretching.
+
 Reading exposes `image_placement` support and whether a managed image is present.
 `set_slide_image` accepts a fresh Vibe attachment URL on the configured storage
 host. It supports original key-message and bullet slides: title remains full
@@ -183,7 +187,8 @@ configuration, release checks, and bug fixes, not auth feature expansion.
   at text limits and across fonts, source fidelity, links, numbering preservation,
   cover image handling, skipped slides, and conversational feature discovery.
 - If the Google OAuth app is in Testing, accounts must also be approved Google
-  test users. Publishing and deployment configuration are tracked in the [submission checklist](submission-checklist.md#4-verify-google-oauth-and-onboarding).
+  test users. See [deployment configuration](auth.md#deployment-configuration)
+  for Google publishing and server settings.
   Client-only admission and global usage controls are implemented locally, with
   deployed admission acceptance confirmed by the user on 2026-09-10. Configure verified `mistral.ai` Workspace access
   and personal exceptions; remove the friend exception before submission.

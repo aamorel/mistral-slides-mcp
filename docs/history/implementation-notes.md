@@ -22,7 +22,6 @@ MCP URL: https://mistral-slides-mcp-production.up.railway.app/mcp
 - [User guide](../user-guide.md): connect and try example requests.
 - [Authentication reference](../auth.md): frozen flow, access policy, tokens and operation.
 - [Current MVP scope](../capabilities.md): supported tools and limits.
-- [Submission checklist](../submission-checklist.md): remaining acceptance and handoff work.
 - [Original assignment](../assignment.md): preserved as supplied.
 - [Historical investigation](investigation.md): superseded experiments.
 

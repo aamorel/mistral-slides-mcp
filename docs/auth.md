@@ -4,8 +4,7 @@
 This is the reference for the implemented flow at `d53361d`. Keep this behavior
 stable; limit further auth work to bug fixes, configuration, and release checks.
 Google publishing and Railway settings are operational state, not implied by this
-freeze. Configuration is described below; remaining release checks live in the
-[submission checklist](submission-checklist.md#4-verify-google-oauth-and-onboarding).
+freeze. See [deployment configuration](#deployment-configuration) for setup details.
 
 ## One connection, two OAuth relationships
 

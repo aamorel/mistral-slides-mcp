@@ -63,7 +63,7 @@ Attachment placement validates a key-message or bullet slide, retrieves a fresh
 image from the allowed host, and checks text capacity beside it. Text geometry and
 the image are updated together. The full image fits in one frame without cropping;
 replacing an occupied frame requires an explicit replacement request. See
-[image placement](image-editing-ux.md) for its limits.
+[image placement](capabilities.md#images-on-existing-slides) for its limits.
 
 ## Identity and storage
 
@@ -110,5 +110,4 @@ for the complete token lifecycle and storage details.
 
 Automated tests mock providers and exercise tool contracts, OAuth isolation,
 validation, revision conflicts, and failure recovery. Real provider configuration
-and visual output require live checks; release tracking belongs in the
-[submission checklist](submission-checklist.md).
+and visual output require live checks.
