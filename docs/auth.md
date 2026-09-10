@@ -1,10 +1,7 @@
-# Authentication — frozen pilot baseline
+# Authentication
 
-**Frozen on 9 September 2026**, following approval of the connection experience.
-This is the reference for the implemented flow at `d53361d`. Keep this behavior
-stable; limit further auth work to bug fixes, configuration, and release checks.
-Google publishing and Railway settings are operational state, not implied by this
-freeze. See [deployment configuration](#deployment-configuration) for setup details.
+Google credentials stay on the server; each MCP connection receives separate
+access tokens. See [deployment configuration](#deployment-configuration) for setup.
 
 ## One connection, two OAuth relationships
 
@@ -152,7 +149,7 @@ and [branding requirements](https://developers.google.com/identity/protocols/oau
 | “Client-only pilot” denial | Railway allowlists, exact selected Google account, then redeploy after correcting variables. |
 | Google blocks account before our callback | Google Audience/tester settings and client Workspace restrictions; see Deployment configuration above. |
 | Expired connection link | Start a fresh connection from Vibe; do not reuse an old callback URL. |
-| Existing connection stops working | Reconnect after token expiry, revocation, or the identity-policy upgrade. |
+| Existing connection stops working | Reconnect if refresh fails or the connection has been revoked; check account admission settings. |
 
 Usage controls are separate from authentication: defaults are 100 lifetime paid
 provider-call attempts and two concurrent calls. `PILOT_PAID_CALLS_ENABLED=false`
@@ -169,11 +166,8 @@ a currency cap. See [usage settings](../README.md#pilot-usage-controls).
 | [pages.py](../src/mcp_slides/pages.py) | Connection UI, public homepage and privacy policy. |
 | [usage.py](../src/mcp_slides/usage.py) | Shared paid-operation allowance and concurrency control. |
 
-Recorded validation: 77 full-suite tests passed after implementation; the 10
-OAuth tests passed again after the UI update. Tests cover signed identity
-validation, admission, PKCE, CSRF, refresh/replay, revocation, isolation, and usage
-limits with providers mocked. The user approved the connection UI. This document
-does not claim a fresh production audit or acceptance by every client account.
+Tests cover signed identity validation, admission, PKCE, CSRF, refresh/replay,
+revocation, isolation, and usage limits with providers mocked.
 
-Per-user quotas, account-wide preference merging, storage-encryption changes,
-and additional login providers remain outside this auth freeze.
+Per-user quotas, account-wide preference merging, database credential encryption,
+and additional login providers are not implemented.

@@ -170,39 +170,21 @@ Acknowledge unsupported requests. Do not silently save one-deck style requests,
 drop unsupported operations from text edits, or create replacement decks without
 being asked.
 
-## Validation and release constraints
+## Operational constraints
 
-Authentication and the connection UI are frozen for the pilot as of 2026-09-09.
-[auth reference](auth.md) defines the accepted behavior; remaining work is
-configuration, release checks, and bug fixes, not auth feature expansion.
-
-- Automated validation on 2026-09-09: all 100 tests passed, covering schemas, API request construction,
-  MCP discovery/invocation, authentication isolation, preferences, supported edits,
-  partial style updates, URL normalization, and revision/error handling.
-  This is local mocked-provider evidence, not deployed acceptance.
-- A live Mistral text-generation check successfully produced all four types.
-  Earlier live Google authorization and generation were tested by the user.
-- Live acceptance of the latest layouts and mutations was confirmed by the user
-  on 2026-09-10: visual fit
-  at text limits and across fonts, source fidelity, links, numbering preservation,
-  cover image handling, skipped slides, and conversational feature discovery.
-- If the Google OAuth app is in Testing, accounts must also be approved Google
-  test users. See [deployment configuration](auth.md#deployment-configuration)
-  for Google publishing and server settings.
-  Client-only admission and global usage controls are implemented locally, with
-  deployed admission acceptance confirmed by the user on 2026-09-10. Configure verified `mistral.ai` Workspace access
-  and personal exceptions; remove the friend exception before submission.
-  Defaults: 100 lifetime paid provider calls, two concurrent calls, and an operator
-  pause switch. These are operation limits, not a currency spending cap.
+- Admission requires a verified Workspace domain or an explicitly allowed personal
+  email. If the Google OAuth app is in Testing, accounts must also be Google test
+  users. See [deployment configuration](auth.md#deployment-configuration).
+- All users share the operator's Mistral API key. Defaults allow 100 lifetime paid
+  call attempts and two concurrent paid calls, with an operator pause switch.
+  These are operation limits, not a currency spending cap.
 - Google access uses each connection's credentials and `drive.file`, plus
-  `openid` and email identity scopes for admission; no shared
-  Google-account fallback. Mistral calls use the operator's API key.
-- Deployment requires public HTTPS and persistent SQLite storage on the existing
-  single-instance service. Temporary covers, gradients and normalized attachments
-  use expiring capability URLs for Google's image fetch and are cleaned up after
-  the operation, with expiry as a backstop.
+  `openid` and email identity scopes for admission. There is no shared Google account.
+- Deployment requires public HTTPS and persistent SQLite storage on one service
+  instance. Temporary covers, gradients, and attachments use expiring URLs for
+  Google's image fetch and are cleaned up after use.
 
-## Outside this freeze
+## Not supported
 
 - More layouts, arbitrary visual design, templates, native theme imports,
   creation-time attachments, multiple images per slide, cropping, image removal,
