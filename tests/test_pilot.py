@@ -24,7 +24,7 @@ class PilotTests(unittest.TestCase):
         env = patch.dict(os.environ, {
             'TOKEN_DB_PATH': str(Path(temp.name) / 'tokens.db'),
             'GOOGLE_CLIENT_ID': 'pilot-client', 'GOOGLE_ALLOWED_DOMAIN': 'mistral.ai',
-            'GOOGLE_ALLOWED_EMAILS': 'aurelien.morel.arthur@gmail.com,vmaxmc2@gmail.com',
+            'GOOGLE_ALLOWED_EMAILS': 'aurelien.morel.arthur@gmail.com,friend@example.com',
             'PILOT_MAX_PAID_CALLS': '3', 'PILOT_MAX_CONCURRENT_CALLS': '2',
             'PILOT_PAID_CALLS_ENABLED': 'true'})
         env.start()
@@ -38,13 +38,13 @@ class PilotTests(unittest.TestCase):
     def test_admission_requires_hosted_domain_or_verified_exact_exception(self):
         for claims in ({'hd': 'mistral.ai'},
                        {'email': 'aurelien.morel.arthur@gmail.com', 'email_verified': True},
-                       {'email': 'vmaxmc2@gmail.com', 'email_verified': True}):
+                       {'email': 'friend@example.com', 'email_verified': True}):
             self.assertTrue(auth.allowed_identity({'sub': 'google-user', **claims}))
         for claims in ({'email': 'someone@mistral.ai', 'email_verified': True},
                        {'hd': 'evil.mistral.ai'}, {'hd': 'mistral.ai.evil.com'}, {},
-                       {'email': 'vmaxmc2@gmail.com', 'email_verified': 'true'},
-                       {'email': 'vmaxmc2@gmail.com', 'email_verified': False},
-                       {'email': 'vmaxmc2+other@gmail.com', 'email_verified': True}):
+                       {'email': 'friend@example.com', 'email_verified': 'true'},
+                       {'email': 'friend@example.com', 'email_verified': False},
+                       {'email': 'friend+other@example.com', 'email_verified': True}):
             self.assertFalse(auth.allowed_identity({'sub': 'google-user', **claims}))
         self.assertFalse(auth.allowed_identity({'hd': 'mistral.ai'}))
         with patch.dict(os.environ, {'GOOGLE_ALLOWED_DOMAIN': '', 'GOOGLE_ALLOWED_EMAILS': ''}):
@@ -80,7 +80,7 @@ class PilotTests(unittest.TestCase):
         with closing(auth.connect()) as db:
             tokens = {}
             for subject, claims in {
-                'friend': {'sub': 'friend', 'email': 'vmaxmc2@gmail.com', 'email_verified': True},
+                'friend': {'sub': 'friend', 'email': 'friend@example.com', 'email_verified': True},
                 'owner': {'sub': 'owner', 'email': 'aurelien.morel.arthur@gmail.com', 'email_verified': True},
                 'client': {'sub': 'client', 'hd': 'mistral.ai'},
             }.items():

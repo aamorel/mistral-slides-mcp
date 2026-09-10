@@ -86,7 +86,7 @@ Keep the following live checks open until their outcomes are recorded.
 - [ ] Confirm Google Data Access matches the implemented scopes in `docs/auth.md`.
 - [ ] Review Audience, Branding, and Verification Center requirements, then
   publish the external OAuth app when ready.
-- [ ] Verify the owner and temporary friend can connect during evaluation.
+- [ ] Verify the owner can connect with the submission allowlist.
 - [ ] Connect through Vibe with a client account that was never a test user;
   confirm its verified domain is admitted and unrelated accounts are denied.
 - [ ] Verify that the created deck belongs to that account and its returned link opens.

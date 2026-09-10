@@ -60,12 +60,12 @@ connector grant is issued, and triggers no model call.
 
 ```dotenv
 GOOGLE_ALLOWED_DOMAIN=mistral.ai
-GOOGLE_ALLOWED_EMAILS=aurelien.morel.arthur@gmail.com,vmaxmc2@gmail.com
+GOOGLE_ALLOWED_EMAILS=aurelien.morel.arthur@gmail.com
 ```
 
-These are the intended pilot settings; set them in Railway. `.env.example` is
-only a template. **Remove the friend's email before submission and restart** to
-purge its existing connections. Keep the owner's exception.
+These are the intended submission settings; set them in Railway. `.env.example`
+is only a template. After removing any temporary exceptions, restart to purge
+their existing connections. Keep the owner's exception.
 
 ## Permissions and identity
 
